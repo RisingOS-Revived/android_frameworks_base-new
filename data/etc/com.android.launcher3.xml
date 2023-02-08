@@ -35,6 +35,7 @@
         <permission name="android.permission.PERSONAL_CONTEXT_HOST_INSIGHT_SURFACE"/>
         <permission name="android.permission.PERSONAL_CONTEXT_READ_SETTINGS"/>
         <permission name="android.permission.FORCE_STOP_PACKAGES"/>
+        <permission name="android.permission.REGISTER_STATS_PULL_ATOM"/>
         <permission name="android.permission.GET_ROLE_HOLDERS"/>
     </privapp-permissions>
 </permissions>
