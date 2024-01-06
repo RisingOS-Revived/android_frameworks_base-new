@@ -5536,12 +5536,6 @@ public final class Settings {
         public static final String FOLD_LOCK_BEHAVIOR = "fold_lock_behavior_setting";
 
         /**
-         * Whether refresh rate should be switched to 60Hz on power save mode.
-         * @hide
-         */
-        public static final String LOW_POWER_REFRESH_RATE = "low_power_rr_switch";
-
-        /**
          * The amount of time in milliseconds before the device goes to sleep or begins
          * to dream after a period of inactivity.  This value is also known as the
          * user activity timeout period since the screen isn't necessarily turned off
@@ -7555,6 +7549,18 @@ public final class Settings {
          * @hide
          */
         public static final String EDGE_LIGHT_ANIMATION_EFFECT = "edge_light_animation_effect";
+
+        /**
+         * Per-app refresh rate config
+         * @hide
+         */
+        public static final String REFRESH_RATE_CONFIG_CUSTOM = "refresh_rate_config_custom";
+
+        /**
+         * Force highest refresh rate in all apps
+         * @hide
+         */
+        public static final String EXTREME_REFRESH_RATE = "extreme_refresh_rate";
 
         /**
          * Keys we no longer back up under the current schema, but want to continue to
@@ -20668,6 +20674,12 @@ public final class Settings {
          */
         public static final String UIDS_ALLOWED_ON_RESTRICTED_NETWORKS =
                 "uids_allowed_on_restricted_networks";
+
+        /**
+         * Whether refresh rate should be switched to 60Hz on power save mode.
+         * @hide
+         */
+        public static final String LOW_POWER_REFRESH_RATE = "low_power_rr_switch";
 
         /**
          * A semi-colon separated list of Bluetooth hearing devices' local ambient volume data.
