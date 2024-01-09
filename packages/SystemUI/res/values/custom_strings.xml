@@ -330,4 +330,7 @@
     <!-- QQS tiles customization -->
     <string name="qs_edit_mode_qqs">Quick Quick Settings</string>
     <string name="qs_edit_mode_qs">Quick Settings</string>
+
+    <!-- AI Assistant affordance [CHAR LIMIT=32] -->
+    <string name="accessibility_assistant_button">AI Assistant</string>
 </resources>
