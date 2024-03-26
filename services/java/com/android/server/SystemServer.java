@@ -357,6 +357,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 
 import com.android.server.DerpFestSystemExService;
+import org.rising.server.RisingServicesStarter;
 
 /**
  * Entry point to {@code system_server}.
@@ -3468,6 +3469,9 @@ public final class SystemServer implements Dumpable {
         t.traceBegin("HealthConnectManagerService");
         mSystemServiceManager.startService(HEALTHCONNECT_MANAGER_SERVICE_CLASS);
         t.traceEnd();
+
+        RisingServicesStarter risingServiceStarter = new RisingServicesStarter(mSystemServiceManager);
+        risingServiceStarter.startAllServices();
 
         if (mPackageManager.hasSystemFeature(PackageManager.FEATURE_DEVICE_LOCK)) {
             t.traceBegin("DeviceLockService");
