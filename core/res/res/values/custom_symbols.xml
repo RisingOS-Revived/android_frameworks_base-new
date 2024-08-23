@@ -193,4 +193,7 @@
 
     <!-- Whitelist of package names to bypass broadcast reciever validation -->
     <java-symbol type="array" name="config_broadcastReceiverValidationBypassPackages"/>
+    
+    <!-- KeyBox -->
+    <java-symbol type="array" name="config_certifiedKeybox" />
 </resources>
