@@ -143,4 +143,7 @@
     <string name="usb_mode_webcam">USB Webcam</string>
     <string name="usb_mode_charging_only">Charging only</string>
     <string name="usb_charging_status">USB charging is on</string>
+
+    <!-- System Theme Re-evaluation Toast -->
+    <string name="reevaluating_system_theme">Re-evaluating system theme.. Please wait for a few seconds</string>
 </resources>
