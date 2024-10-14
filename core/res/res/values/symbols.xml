@@ -6628,4 +6628,9 @@
   <java-symbol type="drawable" name="ic_cross_device_sync_airplane" />
   <!-- Disable the Video Capability over IWLAN when Wi-Fi Calling is turned off  -->
   <java-symbol type="bool" name="config_disable_video_capability_when_wfc_off" />
-  </resources>
+
+  <!-- Custom clocks -->
+  <java-symbol type="dimen" format="float" name="presentation_clock_text_size" />
+  <java-symbol type="dimen" format="float" name="large_clock_text_size" />
+  <java-symbol type="dimen" format="float" name="small_clock_text_size" />
+</resources>

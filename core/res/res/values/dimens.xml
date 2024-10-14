@@ -1210,4 +1210,9 @@
     <dimen name="app_lock_permission_review_app_list_expanded_height">320dp</dimen>
     <dimen name="app_lock_pill_radius">100dp</dimen>
     <dimen name="app_lock_top_margin">24sp</dimen>
+
+    <!-- Custom clocks -->
+    <dimen name="presentation_clock_text_size">50dp</dimen>
+    <dimen name="large_clock_text_size">150dp</dimen>
+    <dimen name="small_clock_text_size">86dp</dimen>
 </resources>
