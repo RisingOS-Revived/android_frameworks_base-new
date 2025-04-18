@@ -7439,7 +7439,7 @@ public final class ActivityRecord extends WindowToken implements WindowManagerSe
         }
     }
 
-    public void reportScreenCaptured() {
+    void reportScreenCaptured() {
         if (mCaptureCallbacks != null) {
             final int n = mCaptureCallbacks.beginBroadcast();
             for (int i = 0; i < n; i++) {
@@ -7453,20 +7453,16 @@ public final class ActivityRecord extends WindowToken implements WindowManagerSe
         }
     }
 
-    public void registerCaptureObserver(IScreenCaptureObserver observer) {
-        synchronized (mWmService.mGlobalLock) {
-            if (mCaptureCallbacks == null) {
-                mCaptureCallbacks = new RemoteCallbackList<IScreenCaptureObserver>();
-            }
-            mCaptureCallbacks.register(observer);
+    void registerCaptureObserver(IScreenCaptureObserver observer) {
+        if (mCaptureCallbacks == null) {
+            mCaptureCallbacks = new RemoteCallbackList<IScreenCaptureObserver>();
         }
+        mCaptureCallbacks.register(observer);
     }
 
-    public void unregisterCaptureObserver(IScreenCaptureObserver observer) {
-        synchronized (mWmService.mGlobalLock) {
-            if (mCaptureCallbacks != null) {
-                mCaptureCallbacks.unregister(observer);
-            }
+    void unregisterCaptureObserver(IScreenCaptureObserver observer) {
+        if (mCaptureCallbacks != null) {
+            mCaptureCallbacks.unregister(observer);
         }
     }
 
