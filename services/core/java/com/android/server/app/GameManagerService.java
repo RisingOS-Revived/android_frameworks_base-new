@@ -162,6 +162,12 @@ public final class GameManagerService extends IGameManagerService.Stub {
     private static final String USER_ID_MSG_KEY = "userId";
     private static final String GAME_MODE_INTERVENTION_LIST_FILE_NAME =
             "game_mode_intervention.list";
+            
+    private static final Set<String> GAME_AFFINITY_EXCLUDE_LIST = new HashSet<>(
+            Arrays.asList(
+                "com.proxima.dfm"
+            )
+    );
 
     static {
         LazyJniRegistrar.registerGameManagerService();
@@ -2380,6 +2386,13 @@ public final class GameManagerService extends IGameManagerService.Stub {
                 int pid = entry.getValue();
                 String packageName = entry.getKey();
 
+                if (isGameExcludedFromGameOpt(packageName)) {
+                    Slog.v(TAG, "Skipping set affinity for excluded package: " + packageName);
+                    // make sure it runs on all CPUs
+                    Process.setThreadAffinity(pid, 2);
+                    continue;
+                }
+
                 Process.setThreadAffinity(pid, boosted ? 0 : 2);
                 Slog.v(TAG, "Set affinity for PID=" + pid + " (Package: " + packageName + 
                         ", UID=" + uid + ") to " + (boosted ? "big cores (boosted)" : "all cores (normal)"));
@@ -2408,6 +2421,10 @@ public final class GameManagerService extends IGameManagerService.Stub {
                 }
             }
             return packagePidMap;
+        }
+        
+        private boolean isGameExcludedFromGameOpt(String packageName) {
+            return GAME_AFFINITY_EXCLUDE_LIST.contains(packageName);
         }
     }
 
