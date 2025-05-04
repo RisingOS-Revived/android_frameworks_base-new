@@ -360,12 +360,27 @@ public class CaptionWindowDecorViewModel implements WindowDecorViewModel, FocusT
 
     private DragPositioningCallback createDragPositioningCallback(
             CaptionWindowDecoration windowDecoration) {
-            windowDecoration.createResizeVeil();
+        windowDecoration.createResizeVeil();
+
+        // Create a proper implementation of DragEventListener instead of using a lambda
+        DragPositioningCallbackUtility.DragEventListener dragEventListener =
+            new DragPositioningCallbackUtility.DragEventListener() {
+                @Override
+                public void onDragStart(int taskId) {
+                    // Empty implementation
+                }
+
+                @Override
+                public void onDragMove(int taskId) {
+                    // Empty implementation
+                }
+            };
+
         return new VeiledResizeTaskPositioner(
                 mTaskOrganizer,
                 windowDecoration,
                 mDisplayController,
-                dragStartListener -> {},
+                dragEventListener,  // Use the full implementation
                 mTransitions,
                 mInteractionJankMonitor,
                 mMainHandler);
