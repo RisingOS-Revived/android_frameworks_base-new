@@ -5565,6 +5565,15 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
         }
     }
 
+    public boolean isPanelFullyCollapsed() {
+        int state = mBarState;
+        if (state == StatusBarState.SHADE_LOCKED
+            || state == StatusBarState.KEYGUARD) {
+            return mQsController.isVisible();
+        }
+        return mExpandedFraction <= 0.0f;
+    }
+
     @Override
     public void showIsland(boolean show) {
         // if landNotify is showing, it must disappear for a while      -- alphi-wang-cn
