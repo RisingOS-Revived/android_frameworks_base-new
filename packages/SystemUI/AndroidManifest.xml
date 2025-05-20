@@ -852,6 +852,14 @@
         <receiver android:name=".people.widget.PeopleSpaceWidgetPinnedReceiver"
             android:enabled="true"/>
 
+        <!-- Omni Jaws -->
+        <provider
+            android:name="com.android.systemui.keyguard.KeyguardSliceProviderOmniJaws"
+            android:authorities="com.android.systemui.keyguard"
+            android:exported="true"
+            android:enabled="true"
+            android:permission="android.permission.BIND_SLICE" />
+
         <!-- ContentProvider that returns a People Tile preview for a given shortcut -->
         <provider
             android:name="com.android.systemui.people.PeopleProvider"

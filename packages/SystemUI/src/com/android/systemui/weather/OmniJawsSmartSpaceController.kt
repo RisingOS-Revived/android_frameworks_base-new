@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 risingOS Android Project
+ * Copyright (C) 2025 RisingOS Revived Android Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,46 +16,47 @@
 package com.android.systemui.weather
 
 import android.content.Context
+import android.content.Intent
 import android.database.ContentObserver
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.os.AsyncTask
 import android.os.Handler
 import android.os.UserHandle
 import android.provider.Settings
+import android.util.Log
 import android.view.View
-import android.widget.ImageView
-import android.widget.TextView
+import androidx.core.graphics.drawable.IconCompat
 import com.android.internal.util.android.OmniJawsClient
 import com.android.systemui.res.R
+import java.lang.ref.WeakReference
 
 /**
- * Updated WeatherViewController that integrates with the new SmartSpace layout
+ * SmartSpace integration for OmniJaws weather provider
  */
-class WeatherViewController(
+class OmniJawsSmartSpaceController(
     private val context: Context,
     private val weatherImageView: WeatherImageView?,
-    private val weatherTextView: WeatherTextView?,
-    private var weatherText: String?
+    private val weatherTextView: WeatherTextView?
 ) : OmniJawsClient.OmniJawsObserver {
 
+    private val TAG = "OmniJawsSmartSpace"
+    private val DEBUG = false
     private val weatherClient = OmniJawsClient(context)
     private var weatherInfo: OmniJawsClient.WeatherInfo? = null
     private var settingsObserver: SettingsObserver? = null
-    private var smartSpaceController: OmniJawsSmartSpaceController? = null
 
     private var clockFaceEnabled = false
     private var showWeatherLocation = false
     private var showWeatherText = false
     private var weatherEnabled = false
-    private var useSmartSpaceLayout = false
+    private var lastProcessedIcon: Bitmap? = null
 
     init {
-        // Create a smart space controller if using the new layout
-        if (weatherImageView?.id == R.id.smartspace_weather_icon || 
-            weatherTextView?.id == R.id.smartspace_weather_text) {
-            useSmartSpaceLayout = true
-            smartSpaceController = OmniJawsSmartSpaceController(context, weatherImageView, weatherTextView)
-        }
-        
         settingsObserver = SettingsObserver(null).apply {
             observe()
         }
@@ -70,7 +71,7 @@ class WeatherViewController(
 
         weatherEnabled = Settings.System.getIntForUser(
             context.contentResolver,
-            LOCKSCREEN_WEATHER_ENABLED,
+            LOCKSCREEN_WEATHER_ENABLED, 
             0, UserHandle.USER_CURRENT
         ) != 0
 
@@ -86,69 +87,45 @@ class WeatherViewController(
             1, UserHandle.USER_CURRENT
         ) != 0
 
-        if (useSmartSpaceLayout) {
-            smartSpaceController?.updateWeatherSettings()
-        } else {
-            weatherImageView?.setWeatherEnabled(weatherEnabled)
-            weatherTextView?.setWeatherEnabled(weatherEnabled)
+        weatherImageView?.setWeatherEnabled(weatherEnabled)
+        weatherTextView?.setWeatherEnabled(weatherEnabled)
 
-            if (weatherEnabled) enableUpdates() else disableUpdates()
+        if (weatherEnabled) enableUpdates() else disableUpdates()
 
-            if (weatherImageView?.id == R.id.smartspace_weather_icon) {
-                weatherImageView?.setWeatherEnabled(!clockFaceEnabled && weatherEnabled)
-            }
-            if (weatherTextView?.id == R.id.smartspace_weather_text) {
-                weatherTextView?.setWeatherEnabled(!clockFaceEnabled && weatherEnabled)
-            }
+        if (weatherImageView?.id == R.id.smartspace_weather_icon) {
+            weatherImageView.setWeatherEnabled(!clockFaceEnabled && weatherEnabled)
+        }
+        if (weatherTextView?.id == R.id.smartspace_weather_text) {
+            weatherTextView.setWeatherEnabled(!clockFaceEnabled && weatherEnabled)
         }
     }
 
     private fun enableUpdates() {
-        if (useSmartSpaceLayout) {
-            // Let the smart space controller handle updates
-            return
-        }
-        
         weatherClient.addObserver(this)
         queryAndUpdateWeather()
     }
 
     fun disableUpdates() {
-        if (useSmartSpaceLayout) {
-            smartSpaceController?.disableUpdates()
-            return
-        }
-        
         weatherClient.removeObserver(this)
     }
 
     fun removeObserver() {
-        if (useSmartSpaceLayout) {
-            smartSpaceController?.removeObserver()
-            return
-        }
-        
         settingsObserver?.unobserve()
     }
 
     override fun weatherError(errorReason: Int) {
-        if (useSmartSpaceLayout) return
-        
         if (errorReason == OmniJawsClient.EXTRA_ERROR_DISABLED) {
             weatherInfo = null
             weatherImageView?.setImageDrawable(null)
+            weatherTextView?.text = ""
         }
     }
 
     override fun weatherUpdated() {
-        if (useSmartSpaceLayout) return
-        
         queryAndUpdateWeather()
     }
 
     private fun queryAndUpdateWeather() {
-        if (useSmartSpaceLayout) return
-        
         try {
             if (!weatherEnabled) {
                 hideWeatherViews()
@@ -158,23 +135,37 @@ class WeatherViewController(
             weatherClient.queryWeather()
             weatherInfo = weatherClient.weatherInfo
             weatherInfo?.let { info ->
-                weatherImageView?.setImageDrawable(weatherClient.getWeatherConditionImage(info.conditionCode))
-                weatherTextView?.text = buildWeatherText(info)
+                val weatherIcon = weatherClient.getWeatherConditionImage(info.conditionCode)
+                
+                if (weatherIcon != null) {
+                    val iconBitmap = drawableToBitmap(weatherIcon)
+                    AddWeatherIconShadowTask(this, iconBitmap).execute()
+                } else {
+                    weatherImageView?.setImageDrawable(null)
+                    weatherTextView?.text = buildWeatherText(info)
+                }
             }
         } catch (e: Exception) {
+            if (DEBUG) Log.e(TAG, "Error updating weather", e)
+        }
+    }
+
+    fun onWeatherIconProcessed(iconWithShadow: Bitmap) {
+        lastProcessedIcon = iconWithShadow
+        weatherImageView?.setImageBitmap(iconWithShadow)
+        weatherInfo?.let { info ->
+            weatherTextView?.text = buildWeatherText(info)
         }
     }
 
     private fun hideWeatherViews() {
-        if (useSmartSpaceLayout) return
-        
         weatherImageView?.visibility = View.GONE
         weatherTextView?.visibility = View.GONE
     }
 
     private fun buildWeatherText(info: OmniJawsClient.WeatherInfo): String {
         val conditionText = getConditionText(info.condition.lowercase())
-        return "${info.temp}${info.tempUnits}" +
+        return "${info.temp}${info.tempUnits}" + 
                 (if (showWeatherLocation) " · ${info.city}" else "") +
                 (if (showWeatherText) " · $conditionText" else "")
     }
@@ -182,10 +173,68 @@ class WeatherViewController(
     private fun getConditionText(condition: String): String {
         for ((key, value) in WEATHER_CONDITIONS) {
             if (condition.contains(key)) {
-                return context.resources.getString(value)
+                return try {
+                    context.resources.getString(value)
+                } catch (e: Exception) {
+                    condition
+                }
             }
         }
         return condition
+    }
+
+    private fun drawableToBitmap(drawable: Drawable): Bitmap {
+        if (drawable is BitmapDrawable) {
+            if (drawable.bitmap != null) {
+                return drawable.bitmap
+            }
+        }
+
+        val bitmap = if (drawable.intrinsicWidth <= 0 || drawable.intrinsicHeight <= 0) {
+            Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+        } else {
+            Bitmap.createBitmap(
+                drawable.intrinsicWidth,
+                drawable.intrinsicHeight,
+                Bitmap.Config.ARGB_8888
+            )
+        }
+
+        val canvas = Canvas(bitmap)
+        drawable.setBounds(0, 0, canvas.width, canvas.height)
+        drawable.draw(canvas)
+        return bitmap
+    }
+
+    class AddWeatherIconShadowTask(
+        controller: OmniJawsSmartSpaceController,
+        private val originalBitmap: Bitmap
+    ) : AsyncTask<Void, Void, Bitmap>() {
+        private val weakController = WeakReference(controller)
+        private val blurRadius = 4f
+
+        override fun doInBackground(vararg params: Void?): Bitmap {
+            val width = originalBitmap.width
+            val height = originalBitmap.height
+            val resultBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(resultBitmap)
+            
+            val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+            shadowPaint.alpha = 70
+            
+            canvas.drawBitmap(originalBitmap, 2f, 2f, shadowPaint)
+            
+            val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+            canvas.drawBitmap(originalBitmap, 0f, 0f, iconPaint)
+            
+            return resultBitmap
+        }
+
+        override fun onPostExecute(result: Bitmap?) {
+            result?.let { bitmap ->
+                weakController.get()?.onWeatherIconProcessed(bitmap)
+            }
+        }
     }
 
     inner class SettingsObserver(handler: Handler?) : ContentObserver(handler) {
