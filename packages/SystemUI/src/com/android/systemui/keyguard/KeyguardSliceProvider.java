@@ -222,13 +222,14 @@ public class KeyguardSliceProvider extends SliceProvider implements
             synchronized (this) {
                 ListBuilder builder = new ListBuilder(getContext(), mSliceUri,
                         ListBuilder.INFINITY);
-                builder.addRow(new RowBuilder(mDateUri).setTitle(mLastText));
+                if (needsMediaLocked()) {
+                    addMediaLocked(builder);
+                } else {
+                    builder.addRow(new RowBuilder(mDateUri).setTitle(mLastText));
+                }
                 addNextAlarmLocked(builder);
                 addZenModeLocked(builder);
                 addPrimaryActionLocked(builder);
-                if (needsMediaLocked()) {
-                    addMediaLocked(builder);
-                }
                 slice = builder.build();
             }
         } catch (IllegalStateException e) {
@@ -253,11 +254,8 @@ public class KeyguardSliceProvider extends SliceProvider implements
         if (TextUtils.isEmpty(mMediaTitle)) {
             return;
         }
-        {
-            var titleBuilder = new RowBuilder(mHeaderUri);
-            titleBuilder.setTitle(mMediaTitle);
-            listBuilder.addRow(titleBuilder);
-        }
+        listBuilder.setHeader(new ListBuilder.HeaderBuilder(mHeaderUri).setTitle(mMediaTitle));
+
         if (!TextUtils.isEmpty(mMediaArtist)) {
             RowBuilder albumBuilder = new RowBuilder(mMediaUri);
             albumBuilder.setTitle(mMediaArtist);
