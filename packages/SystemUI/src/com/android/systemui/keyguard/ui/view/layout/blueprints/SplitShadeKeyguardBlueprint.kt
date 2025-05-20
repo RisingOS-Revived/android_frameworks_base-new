@@ -32,6 +32,7 @@ import com.android.systemui.keyguard.ui.view.layout.sections.DefaultShortcutsSec
 import com.android.systemui.keyguard.ui.view.layout.sections.DefaultStatusBarSection
 import com.android.systemui.keyguard.ui.view.layout.sections.DefaultStatusViewSection
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardSectionsModule
+import com.android.systemui.keyguard.ui.view.layout.sections.NowBarSection
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardSliceViewSection
 import com.android.systemui.keyguard.ui.view.layout.sections.SmartspaceSection
 import com.android.systemui.keyguard.ui.view.layout.sections.SplitShadeGuidelines
@@ -67,6 +68,7 @@ constructor(
     communalTutorialIndicatorSection: CommunalTutorialIndicatorSection,
     clockSection: ClockSection,
     smartspaceSection: SmartspaceSection,
+    nowBarSection: NowBarSection,
     mediaSection: SplitShadeMediaSection,
     keyguardSliceViewSection: KeyguardSliceViewSection,
 ) : KeyguardBlueprint {
@@ -89,6 +91,7 @@ constructor(
             communalTutorialIndicatorSection,
             clockSection,
             keyguardSliceViewSection,
+            nowBarSection,
             mediaSection,
             defaultDeviceEntrySection, // Add LAST: Intentionally has z-order above other views.
         )
