@@ -38,6 +38,7 @@ import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardSectionsMod
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardSliceViewSection
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardWidgetViewSection
 import com.android.systemui.keyguard.ui.view.layout.sections.NowBarSection
+import com.android.systemui.keyguard.ui.view.layout.sections.InfoWidgetsSection
 import com.android.systemui.keyguard.ui.view.layout.sections.SmartspaceSection
 import java.util.Optional
 import javax.inject.Inject
@@ -74,6 +75,7 @@ constructor(
     keyguardSliceViewSection: KeyguardSliceViewSection,
     keyguardWidgetViewSection: KeyguardWidgetViewSection,
     nowBarSection: NowBarSection,
+    infoWidgetsSection: InfoWidgetsSection,
     udfpsAccessibilityOverlaySection: DefaultUdfpsAccessibilityOverlaySection,
     defaultIndicationAreaTopSection: DefaultIndicationAreaTopSection,
 ) : KeyguardBlueprint {
@@ -98,6 +100,7 @@ constructor(
             keyguardSliceViewSection,
             keyguardWidgetViewSection,
             nowBarSection,
+            infoWidgetsSection,
             defaultDeviceEntrySection,
             udfpsAccessibilityOverlaySection, // Add LAST: Intentionally has z-order above others
         )

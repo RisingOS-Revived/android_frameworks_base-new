@@ -40,6 +40,13 @@ abstract class KeyguardSectionsModule {
         fun nowBarSection(impl: NowBarSection): KeyguardSection
     }
 
+    @Module
+    interface InfoWidgetsSectionModule {
+        @Binds
+        @IntoSet
+        fun infoWidgetsSection(impl: InfoWidgetsSection): KeyguardSection
+    }
+
     @BindsOptionalOf
     @Named(KEYGUARD_AMBIENT_INDICATION_AREA_SECTION)
     abstract fun defaultAmbientIndicationAreaSection(): KeyguardSection

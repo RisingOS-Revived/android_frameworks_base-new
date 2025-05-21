@@ -39,7 +39,7 @@ constructor(
     override fun addViews(constraintLayout: ConstraintLayout) {
         if (!MigrateClocksToBlueprint.isEnabled) return
         
-        constraintLayout.findViewById<View?>(R.id.keyguard_clock_widgets)?.let { existingView ->
+        constraintLayout.findViewById<View?>(R.id.keyguard_widgets)?.let { existingView ->
             // Remove from current parent if it exists
             (existingView.parent as? ViewGroup)?.removeView(existingView)
             
@@ -66,14 +66,14 @@ constructor(
         constraintSet.apply {
             // Position widgets area to span full width
             connect(
-                R.id.keyguard_clock_widgets,
+                R.id.keyguard_widgets,
                 ConstraintSet.START,
                 ConstraintSet.PARENT_ID,
                 ConstraintSet.START,
                 0,
             )
             connect(
-                R.id.keyguard_clock_widgets,
+                R.id.keyguard_widgets,
                 ConstraintSet.END,
                 ConstraintSet.PARENT_ID,
                 ConstraintSet.END,
@@ -81,11 +81,11 @@ constructor(
             )
             
             // Set height to wrap content
-            constrainHeight(R.id.keyguard_clock_widgets, ConstraintSet.WRAP_CONTENT)
+            constrainHeight(R.id.keyguard_widgets, ConstraintSet.WRAP_CONTENT)
             
             // Position below the slice view (or other reference view)
             connect(
-                R.id.keyguard_clock_widgets,
+                R.id.keyguard_widgets,
                 ConstraintSet.TOP,
                 R.id.keyguard_slice_view,
                 ConstraintSet.BOTTOM,
@@ -97,7 +97,7 @@ constructor(
                 R.id.smart_space_barrier_bottom,
                 Barrier.BOTTOM,
                 0,
-                *intArrayOf(R.id.keyguard_clock_widgets)
+                *intArrayOf(R.id.keyguard_widgets)
             )
         }
     }
