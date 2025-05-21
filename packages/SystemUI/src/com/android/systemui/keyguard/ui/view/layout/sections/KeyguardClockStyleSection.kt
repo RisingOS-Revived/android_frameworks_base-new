@@ -103,12 +103,12 @@ constructor(
             
             // Position relative to status area or existing clock elements
             // This ensures we don't interfere with the default clock positioning
-            if (constraintSet.getConstraint(R.id.keyguard_clock_view) != null) {
+            if (constraintSet.getConstraint(R.id.keyguard_status_area) != null) {
                 // If default clock exists, position below it
                 connect(
                     R.id.clock_ls,
                     ConstraintSet.TOP,
-                    R.id.keyguard_clock_view,
+                    R.id.keyguard_status_area,
                     ConstraintSet.BOTTOM
                 )
             } else {

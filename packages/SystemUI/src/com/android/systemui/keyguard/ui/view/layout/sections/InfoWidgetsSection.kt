@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 package com.android.systemui.keyguard.ui.view.layout.sections
-
 import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.constraintlayout.widget.Barrier
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import com.android.systemui.keyguard.MigrateClocksToBlueprint
@@ -67,7 +67,7 @@ constructor(
         if (!MigrateClocksToBlueprint.isEnabled) return
         
         constraintSet.apply {
-            // Position the info widgets below the clock
+            // Position the info widgets below the smart space barrier (which is either the clock or other elements)
             connect(
                 R.id.keyguard_info_widgets,
                 ConstraintSet.START,
@@ -80,21 +80,34 @@ constructor(
                 ConstraintSet.PARENT_ID,
                 ConstraintSet.END
             )
+            
+            // Connect to the bottom of the smart space barrier created by the clock sections
             connect(
                 R.id.keyguard_info_widgets,
                 ConstraintSet.TOP,
-                ConstraintSet.PARENT_ID,
+                R.id.smart_space_barrier_bottom,
                 ConstraintSet.BOTTOM
             )
             
             // Set appropriate margins
-            setMargin(R.id.keyguard_info_widgets, ConstraintSet.TOP, 16)
+            setMargin(R.id.keyguard_info_widgets, ConstraintSet.TOP, 24)
             setMargin(R.id.keyguard_info_widgets, ConstraintSet.START, 16)
             setMargin(R.id.keyguard_info_widgets, ConstraintSet.END, 16)
             
             // Set height to wrap content
             constrainHeight(R.id.keyguard_info_widgets, ConstraintSet.WRAP_CONTENT)
             constrainWidth(R.id.keyguard_info_widgets, ConstraintSet.MATCH_CONSTRAINT)
+            
+            // Set the elevation to ensure proper layering
+            setElevation(R.id.keyguard_info_widgets, 1f)
+            
+            // Create a barrier for notifications to reference
+            createBarrier(
+                R.id.info_widgets_barrier_bottom,
+                Barrier.BOTTOM,
+                0,
+                *intArrayOf(R.id.keyguard_info_widgets)
+            )
         }
     }
     

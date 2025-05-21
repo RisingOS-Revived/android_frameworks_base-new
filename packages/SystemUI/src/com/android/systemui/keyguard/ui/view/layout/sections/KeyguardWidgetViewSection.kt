@@ -39,7 +39,7 @@ constructor(
     override fun addViews(constraintLayout: ConstraintLayout) {
         if (!MigrateClocksToBlueprint.isEnabled) return
         
-        constraintLayout.findViewById<View?>(R.id.keyguard_widgets)?.let { existingView ->
+        constraintLayout.findViewById<View?>(R.id.keyguard_clock_widgets)?.let { existingView ->
             // Remove from current parent if it exists
             (existingView.parent as? ViewGroup)?.removeView(existingView)
             
@@ -66,14 +66,14 @@ constructor(
         constraintSet.apply {
             // Position widgets area to span full width
             connect(
-                R.id.keyguard_widgets,
+                R.id.keyguard_clock_widgets,
                 ConstraintSet.START,
                 ConstraintSet.PARENT_ID,
                 ConstraintSet.START,
                 0,
             )
             connect(
-                R.id.keyguard_widgets,
+                R.id.keyguard_clock_widgets,
                 ConstraintSet.END,
                 ConstraintSet.PARENT_ID,
                 ConstraintSet.END,
@@ -81,23 +81,39 @@ constructor(
             )
             
             // Set height to wrap content
-            constrainHeight(R.id.keyguard_widgets, ConstraintSet.WRAP_CONTENT)
+            constrainHeight(R.id.keyguard_clock_widgets, ConstraintSet.WRAP_CONTENT)
             
-            // Position below the slice view (or other reference view)
-            connect(
-                R.id.keyguard_widgets,
-                ConstraintSet.TOP,
-                R.id.keyguard_slice_view,
-                ConstraintSet.BOTTOM,
-                0
-            )
+            // Position below the info_widgets_barrier_bottom or slice view (whichever is present)
+            // First check if info_widgets_barrier_bottom exists
+            val infoWidgetsBarrierExists = constraintLayout.findViewById<View?>(R.id.info_widgets_barrier_bottom) != null
+            if (infoWidgetsBarrierExists) {
+                connect(
+                    R.id.keyguard_clock_widgets,
+                    ConstraintSet.TOP,
+                    R.id.info_widgets_barrier_bottom,
+                    ConstraintSet.BOTTOM,
+                    16 // Add some margin
+                )
+            } else {
+                // Fall back to the slice view
+                connect(
+                    R.id.keyguard_clock_widgets,
+                    ConstraintSet.TOP,
+                    R.id.keyguard_slice_view,
+                    ConstraintSet.BOTTOM,
+                    16
+                )
+            }
+            
+            // Set elevation to ensure proper z-order
+            setElevation(R.id.keyguard_clock_widgets, 2f)
             
             // Create barrier for other elements to reference
             createBarrier(
-                R.id.smart_space_barrier_bottom,
+                R.id.widgets_barrier_bottom,
                 Barrier.BOTTOM,
                 0,
-                *intArrayOf(R.id.keyguard_widgets)
+                *intArrayOf(R.id.keyguard_clock_widgets)
             )
         }
     }
