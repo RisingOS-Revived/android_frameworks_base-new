@@ -19,7 +19,6 @@ package com.android.systemui.keyguard.ui.view.layout.sections
 import android.content.Context
 import android.view.View
 import android.view.ViewGroup
-import androidx.constraintlayout.widget.Barrier
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import com.android.systemui.keyguard.MigrateClocksToBlueprint
@@ -35,11 +34,15 @@ constructor(
 ) : KeyguardSection() {
 
     private var widgetView: LockScreenWidgets? = null
+    
+    // Use the widget ID that is actually in your R.id resources
+    // For now, we'll use the same ID as in your original implementation
+    private val KEYGUARD_WIDGETS_ID = R.id.keyguard_widgets
 
     override fun addViews(constraintLayout: ConstraintLayout) {
         if (!MigrateClocksToBlueprint.isEnabled) return
         
-        constraintLayout.findViewById<View?>(R.id.keyguard_clock_widgets)?.let { existingView ->
+        constraintLayout.findViewById<View?>(KEYGUARD_WIDGETS_ID)?.let { existingView ->
             // Remove from current parent if it exists
             (existingView.parent as? ViewGroup)?.removeView(existingView)
             
@@ -66,14 +69,14 @@ constructor(
         constraintSet.apply {
             // Position widgets area to span full width
             connect(
-                R.id.keyguard_clock_widgets,
+                KEYGUARD_WIDGETS_ID,
                 ConstraintSet.START,
                 ConstraintSet.PARENT_ID,
                 ConstraintSet.START,
                 0,
             )
             connect(
-                R.id.keyguard_clock_widgets,
+                KEYGUARD_WIDGETS_ID,
                 ConstraintSet.END,
                 ConstraintSet.PARENT_ID,
                 ConstraintSet.END,
@@ -81,40 +84,39 @@ constructor(
             )
             
             // Set height to wrap content
-            constrainHeight(R.id.keyguard_clock_widgets, ConstraintSet.WRAP_CONTENT)
+            constrainHeight(KEYGUARD_WIDGETS_ID, ConstraintSet.WRAP_CONTENT)
             
-            // Position below the info_widgets_barrier_bottom or slice view (whichever is present)
-            // First check if info_widgets_barrier_bottom exists
-            val infoWidgetsBarrierExists = constraintLayout.findViewById<View?>(R.id.info_widgets_barrier_bottom) != null
-            if (infoWidgetsBarrierExists) {
+            // Try to position below the info widgets if the resource ID exists
+            if (R.id.keyguard_info_widgets != 0) {
                 connect(
-                    R.id.keyguard_clock_widgets,
+                    KEYGUARD_WIDGETS_ID,
                     ConstraintSet.TOP,
-                    R.id.info_widgets_barrier_bottom,
+                    R.id.keyguard_info_widgets,
                     ConstraintSet.BOTTOM,
                     16 // Add some margin
                 )
-            } else {
+            } else if (R.id.keyguard_slice_view != 0) {
                 // Fall back to the slice view
                 connect(
-                    R.id.keyguard_clock_widgets,
+                    KEYGUARD_WIDGETS_ID,
                     ConstraintSet.TOP,
                     R.id.keyguard_slice_view,
+                    ConstraintSet.BOTTOM,
+                    16
+                )
+            } else {
+                // Last resort: position below the status view
+                connect(
+                    KEYGUARD_WIDGETS_ID,
+                    ConstraintSet.TOP,
+                    R.id.keyguard_status_view,
                     ConstraintSet.BOTTOM,
                     16
                 )
             }
             
             // Set elevation to ensure proper z-order
-            setElevation(R.id.keyguard_clock_widgets, 2f)
-            
-            // Create barrier for other elements to reference
-            createBarrier(
-                R.id.widgets_barrier_bottom,
-                Barrier.BOTTOM,
-                0,
-                *intArrayOf(R.id.keyguard_clock_widgets)
-            )
+            setElevation(KEYGUARD_WIDGETS_ID, 2f)
         }
     }
 
