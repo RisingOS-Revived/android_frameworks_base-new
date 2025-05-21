@@ -47,6 +47,13 @@ abstract class KeyguardSectionsModule {
         fun infoWidgetsSection(impl: InfoWidgetsSection): KeyguardSection
     }
 
+    @Module
+    interface KeyguardClockStyleSectionModule {
+        @Binds
+        @IntoSet
+        fun keyguardClockStyleSection(impl: KeyguardClockStyleSection): KeyguardSection
+    }
+
     @BindsOptionalOf
     @Named(KEYGUARD_AMBIENT_INDICATION_AREA_SECTION)
     abstract fun defaultAmbientIndicationAreaSection(): KeyguardSection
