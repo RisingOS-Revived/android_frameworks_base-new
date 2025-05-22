@@ -23,8 +23,14 @@ import android.content.Context;
 import android.os.Build;
 import android.os.SystemProperties;
 import android.util.Log;
+import com.android.internal.R;
+
+import android.content.pm.PackageManager;
+import android.content.res.Configuration;
+import android.content.res.Resources;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -37,13 +43,18 @@ public class PropsHooksUtils {
     private static final String PROP_HOOKS = "persist.sys.pihooks_";
     private static final String PROP_HOOKS_MAINLINE = "persist.sys.pihooks_mainline_";
     private static final boolean DEBUG = SystemProperties.getBoolean(PROP_HOOKS + "DEBUG", false);
-
+    
+    private static final String PACKAGE_VENDING = "com.android.vending";
+    private static final int VENDING_TARGET_SDK_INT = 32;
+    private static final String VENDING_TARGET_RELEASE_VERSION = "12";
+    
     public static final String SPOOF_PIXEL_GMS = "persist.sys.pixelprops.gms";
     public static final String SPOOF_PIXEL_GPHOTOS = "persist.sys.pixelprops.gphotos";
     public static final String ENABLE_PROP_OPTIONS = "persist.sys.pixelprops.all";
     public static final String ENABLE_GAME_PROP_OPTIONS = "persist.sys.gameprops.enabled";
     public static final String SPOOF_PIXEL_GOOGLE_APPS = "persist.sys.pixelprops.google";
     public static final String SPOOF_EXTRA_PACKAGES = "persist.sys.spoof.extra";
+    public static final String SPOOF_VENDING_SDK32_ENABLED = "persist.sys.spoof.vending_sdk32";
 
     private static final Map<String, Object> propsToChangeMainline;
     private static final Map<String, Object> propsToChangePixelXL;
@@ -70,7 +81,7 @@ public class PropsHooksUtils {
     private static final String[] GMS_SPOOF_KEYS = {
         "BRAND", "DEVICE", "DEVICE_INITIAL_SDK_INT", "FINGERPRINT", "ID",
         "MANUFACTURER", "MODEL", "PRODUCT", "RELEASE", "SECURITY_PATCH",
-        "TAGS", "TYPE"
+        "TAGS", "TYPE", "SDK_INT"
     };
 
     static {
@@ -130,6 +141,14 @@ public class PropsHooksUtils {
         if (packagesToSpoof.contains(packageName)) {
             if (SystemProperties.getBoolean(SPOOF_PIXEL_GOOGLE_APPS, true)) {
                 propsToChange.putAll(propsToChangeMainline);
+            }
+        }
+
+        if (packageName.equals(PACKAGE_VENDING)) {
+            if (SystemProperties.getBoolean(SPOOF_VENDING_SDK32_ENABLED, true)) {
+                dlog("Spoofing SDK version for " + packageName + " to SDK " + VENDING_TARGET_SDK_INT);
+                setVersionFieldInt("SDK_INT", VENDING_TARGET_SDK_INT);
+                setVersionFieldString("RELEASE", VENDING_TARGET_RELEASE_VERSION);
             }
         }
 
@@ -291,6 +310,51 @@ public class PropsHooksUtils {
         for (String key : GMS_SPOOF_KEYS) {
             setPropValue(key, SystemProperties.get(PROP_HOOKS + key));
         }
+    }
+
+    // Whitelist of package names to bypass broadcast reciever validation
+    public static boolean shouldBypassBroadcastReceiverValidation(String packageName) {
+        // Check if the app is whitelisted
+        if (Arrays.asList(
+                        getStringArrayResSafely(
+                                R.array.config_broadcastReceiverValidationBypassPackages))
+                .contains(packageName)) {
+            dlog(
+                    "shouldBypassBroadcastReceiverValidation: "
+                            + "Bypassing broadcast receiver validation for whitelisted app: "
+                            + packageName);
+            return true;
+        }
+        return false;
+    }
+
+    private static void setVersionFieldString(String key, String value) {
+        try {
+            Field field = Build.VERSION.class.getDeclaredField(key);
+            field.setAccessible(true);
+            field.set(null, value);
+            field.setAccessible(false);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            Log.e(TAG, "Failed to spoof Build." + key, e);
+        }
+    }
+
+    private static void setVersionFieldInt(String key, int value) {
+        try {
+            dlog("Defining version field " + key + " to " + value);
+            Field field = Build.VERSION.class.getDeclaredField(key);
+            field.setAccessible(true);
+            field.set(null, value);
+            field.setAccessible(false);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            Log.e(TAG, "Failed to spoof Build." + key, e);
+        }
+    }
+
+    private static String[] getStringArrayResSafely(int resId) {
+        String[] strArr = Resources.getSystem().getStringArray(resId);
+        if (strArr == null) strArr = new String[0];
+        return strArr;
     }
 
     private static boolean isCallerSafetyNet() {
