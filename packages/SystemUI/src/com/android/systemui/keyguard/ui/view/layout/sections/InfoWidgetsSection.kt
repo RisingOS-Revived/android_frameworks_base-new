@@ -88,7 +88,7 @@ constructor(
                     ConstraintSet.TOP,
                     R.id.keyguard_weather,
                     ConstraintSet.BOTTOM,
-                    8 // Small margin
+                    108
                 )
             } else if (constraintSet.getConstraint(R.id.clock_ls) != null) {
                 connect(
@@ -96,7 +96,7 @@ constructor(
                     ConstraintSet.TOP,
                     R.id.clock_ls,
                     ConstraintSet.BOTTOM,
-                    8
+                    108
                 )
             } else if (constraintSet.getConstraint(R.id.keyguard_slice_view) != null) {
                 connect(
@@ -104,7 +104,7 @@ constructor(
                     ConstraintSet.TOP,
                     R.id.keyguard_slice_view,
                     ConstraintSet.BOTTOM,
-                    8
+                    108
                 )
             } else {
                 // Last resort: position below the small clock
@@ -113,7 +113,7 @@ constructor(
                     ConstraintSet.TOP,
                     R.id.lockscreen_clock_view,
                     ConstraintSet.BOTTOM,
-                    8
+                    108
                 )
             }
             
@@ -124,6 +124,7 @@ constructor(
             // Set appropriate margins matching the XML structure
             setMargin(R.id.keyguard_info_widgets, ConstraintSet.START, 0)
             setMargin(R.id.keyguard_info_widgets, ConstraintSet.END, 0)
+            setMargin(R.id.keyguard_info_widgets, ConstraintSet.TOP, 100)
             
             // Ensure proper layering within the status area
             setElevation(R.id.keyguard_info_widgets, 1f)
