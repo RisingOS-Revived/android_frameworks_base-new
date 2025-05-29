@@ -56,16 +56,16 @@ public class CutoutFullscreenController {
         return mApps;
     }
 
-    public void addApp(String packageName, int userId) {
+    public void addApp(String packageName) {
         mApps.add(packageName);
-        Settings.System.putStringForUser(mContext.getContentResolver(),
-                Settings.System.FORCE_FULLSCREEN_CUTOUT_APPS, String.join(",", mApps), userId);
+        Settings.System.putString(mContext.getContentResolver(),
+                Settings.System.FORCE_FULLSCREEN_CUTOUT_APPS, String.join(",", mApps));
     }
 
-    public void removeApp(String packageName, int userId) {
+    public void removeApp(String packageName) {
         mApps.remove(packageName);
-        Settings.System.putStringForUser(mContext.getContentResolver(),
-                Settings.System.FORCE_FULLSCREEN_CUTOUT_APPS, String.join(",", mApps), userId);
+        Settings.System.putString(mContext.getContentResolver(),
+                Settings.System.FORCE_FULLSCREEN_CUTOUT_APPS, String.join(",", mApps));
     }
 
     public void setApps(Set<String> apps) {

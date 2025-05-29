@@ -7443,6 +7443,11 @@ message MetricsEvent {
     SETTINGS_AWARE_DISPLAY = 1750;
     // ---- End Q Constants, all Q constants go above this line ----
     // Add new aosp constants above this line.
+
+    // OPEN: Settings > Display > Full screen apps
+    // OS: T
+    DISPLAY_CUTOUT_FORCE_FULLSCREEN = 1999;
+
     // END OF AOSP CONSTANTS
   }
 }
