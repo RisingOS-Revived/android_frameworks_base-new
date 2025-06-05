@@ -41,6 +41,7 @@ import com.android.systemui.user.domain.interactor.SelectedUserInteractor;
 import com.android.systemui.util.ScreenAnimationController;
 import com.android.systemui.util.wakelock.SettableWakeLock;
 import com.android.systemui.util.wakelock.WakeLock;
+import com.android.systemui.util.settings.SystemSettings;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -83,6 +84,7 @@ public class DozeScreenState implements DozeMachine.Part {
     private final DozeLog mDozeLog;
     private final DozeScreenBrightness mDozeScreenBrightness;
     private final SelectedUserInteractor mSelectedUserInteractor;
+    private final SystemSettings mSystemSettings;
 
     private int mPendingScreenState = Display.STATE_UNKNOWN;
     private SettableWakeLock mWakeLock;
@@ -99,7 +101,8 @@ public class DozeScreenState implements DozeMachine.Part {
             Provider<UdfpsController> udfpsControllerProvider,
             DozeLog dozeLog,
             DozeScreenBrightness dozeScreenBrightness,
-            SelectedUserInteractor selectedUserInteractor) {
+            SelectedUserInteractor selectedUserInteractor,
+            SystemSettings systemSettings) {
         mDozeService = service;
         mHandler = handler;
         mParameters = parameters;
@@ -110,6 +113,7 @@ public class DozeScreenState implements DozeMachine.Part {
         mDozeLog = dozeLog;
         mDozeScreenBrightness = dozeScreenBrightness;
         mSelectedUserInteractor = selectedUserInteractor;
+        mSystemSettings = systemSettings;
 
         updateUdfpsController();
         if (mUdfpsController == null) {
@@ -222,7 +226,12 @@ public class DozeScreenState implements DozeMachine.Part {
                     applyScreenState(Display.STATE_ON);
                     mPendingScreenState = screenState;
                 }
-                mHandler.postDelayed(mApplyPendingScreenState, mAuthController.isUdfpsEnrolled(mSelectedUserInteractor.getSelectedUserId()) ? 4900 : 500);
+                boolean showAodOnScreenOff = mSystemSettings.getIntForUser(
+                        "screen_off_aod_enabled", 1, android.os.UserHandle.USER_CURRENT) == 1;
+                boolean isUdfps = mAuthController.isUdfpsEnrolled(
+                    mSelectedUserInteractor.getSelectedUserId());
+                long delay = showAodOnScreenOff ? 4900 : 500;
+                mHandler.postDelayed(mApplyPendingScreenState, delay);
             } else if (mIsLandscapeScreenOff) {
                 mDozeService.setDozeScreenState(Display.STATE_OFF);
                 mHandler.postDelayed(mApplyPendingScreenState, 1500);
