@@ -360,4 +360,7 @@ public interface CentralSurfaces extends Dumpable, LifecycleOwner, CoreStartable
     com.android.systemui.shade.ShadeViewController getNotificationPanelViewController();
     void wakeUpDeviceifDozing();
     com.android.systemui.shade.NotificationShadeWindowView getNotificationShadeWindowView();
+
+    default void unlockedScreenOffAnimationCancel() {
+    }
 }
