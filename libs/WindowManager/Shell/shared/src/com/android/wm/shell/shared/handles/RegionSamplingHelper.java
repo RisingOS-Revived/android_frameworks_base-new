@@ -163,8 +163,16 @@ public class RegionSamplingHelper implements View.OnAttachStateChangeListener,
     }
 
     public void stopAndDestroy() {
+        if (mIsDestroyed) {
+            return;
+        }
         stop();
-        mBackgroundExecutor.execute(mSamplingListener::destroy);
+        mBackgroundExecutor.execute(() -> {
+            try {
+                mSamplingListener.destroy();
+            } catch (RuntimeException e) {
+            }
+        });
         mIsDestroyed = true;
     }
 
