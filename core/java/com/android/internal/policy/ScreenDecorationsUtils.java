@@ -86,7 +86,7 @@ public class ScreenDecorationsUtils {
 
     static float getPhysicalPixelDisplaySizeRatio(Context context) {
         DisplayInfo displayInfo = new DisplayInfo();
-        context.getDisplay().getDisplayInfo(displayInfo);
+        context.getDisplayNoVerify().getDisplayInfo(displayInfo);
         final Display.Mode maxDisplayMode =
                 DisplayUtils.getMaximumResolutionDisplayMode(displayInfo.supportedModes);
         if (maxDisplayMode == null) {
