@@ -21,11 +21,12 @@ import android.content.BroadcastReceiver;
 import com.android.systemui.CoreStartable;
 import com.android.systemui.plugins.VolumeDialog;
 import com.android.systemui.statusbar.policy.ConfigurationController;
+import com.android.systemui.axion.volume.AxionVolumeDialogPlugin;
+import com.android.systemui.axion.volume.dagger.AxionVolumeSubcomponentModule;
 import com.android.systemui.volume.VolumeComponent;
 import com.android.systemui.volume.VolumeDialogComponent;
 import com.android.systemui.volume.VolumePanelDialogReceiver;
 import com.android.systemui.volume.VolumeUI;
-import com.android.systemui.volume.dialog.VolumeDialogPlugin;
 import com.android.systemui.volume.dialog.dagger.VolumeDialogPluginComponent;
 import com.android.systemui.volume.dialog.dagger.factory.VolumeDialogPluginComponentFactory;
 import com.android.systemui.volume.panel.dagger.VolumePanelComponent;
@@ -46,6 +47,7 @@ import dagger.multibindings.IntoSet;
                 CaptioningModule.class,
                 MediaDevicesModule.class,
                 SpatializerModule.class,
+                AxionVolumeSubcomponentModule.class,
         },
         subcomponents = {
                 VolumePanelComponent.class,
@@ -86,5 +88,5 @@ public interface VolumeModule {
             VolumeDialogPluginComponent.Factory impl);
 
     @Binds
-    VolumeDialog bindVolumeDialog(VolumeDialogPlugin impl);
+    VolumeDialog bindVolumeDialog(AxionVolumeDialogPlugin impl);
 }
