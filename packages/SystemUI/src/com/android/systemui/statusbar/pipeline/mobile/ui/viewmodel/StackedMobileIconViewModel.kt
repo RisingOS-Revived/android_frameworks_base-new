@@ -27,6 +27,8 @@ import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.statusbar.connectivity.ui.MobileContextProvider
 import com.android.systemui.statusbar.pipeline.dagger.StackedMobileIconTableLog
 import com.android.systemui.statusbar.pipeline.mobile.StatusBarMobileIconKairos
+import com.android.systemui.statusbar.pipeline.mobile.domain.model.SignalIconModel
+import com.android.systemui.statusbar.pipeline.mobile.ui.SignalIconLoader
 import com.android.systemui.statusbar.pipeline.mobile.ui.model.DualSim
 import com.android.systemui.statusbar.pipeline.mobile.ui.model.logDualSimDiff
 import com.android.systemui.statusbar.pipeline.mobile.ui.model.tryParseDualSim
@@ -52,6 +54,16 @@ interface StackedMobileIconViewModel : Activatable {
     val isRoamingVisible: Boolean
     val isIconVisible: Boolean
 
+    val useCustomOverlays: Boolean
+    val primaryIcon: SignalIconModel.CellularTypeIconModel.Cellular?
+    val secondaryIcon: SignalIconModel.CellularTypeIconModel.Cellular?
+    val primarySubId: Int?
+    val secondarySubId: Int?
+    val primaryNetworkTypeIcon: Icon.Resource?
+    val secondaryNetworkTypeIcon: Icon.Resource?
+    val primaryRoaming: Boolean
+    val secondaryRoaming: Boolean
+
     fun interface Factory {
         fun create(): StackedMobileIconViewModel
     }
@@ -61,7 +73,7 @@ interface StackedMobileIconViewModel : Activatable {
 class StackedMobileIconViewModelImpl
 @AssistedInject
 constructor(
-    mobileIconsViewModel: MobileIconsViewModel,
+    private val mobileIconsViewModel: MobileIconsViewModel,
     @StackedMobileIconTableLog private val tableLogger: TableLogBuffer,
     @ShadeDisplayAware private val context: Context,
     private val mobileContextProvider: MobileContextProvider,
@@ -70,6 +82,8 @@ constructor(
     init {
         StatusBarMobileIconKairos.assertInLegacyMode()
     }
+
+    private val signalIconLoader = SignalIconLoader(context)
 
     private val iconViewModelFlow: Flow<List<MobileIconViewModelCommon>> =
         combine(
@@ -92,6 +106,9 @@ constructor(
         combine(_dualSim, mobileIconsViewModel.isStackable) { dualSim, isStackable ->
             dualSim != null && isStackable
         }
+
+    override val useCustomOverlays: Boolean
+        get() = signalIconLoader.hasOverlayIcons()
 
     override val dualSim: DualSim? by
         _dualSim
@@ -210,6 +227,64 @@ constructor(
     override val isIconVisible: Boolean by
         _isIconVisible
             .logDiffsForTable(tableLogger, columnName = COL_IS_ICON_VISIBLE, initialValue = false)
+            .hydratedStateOf(initialValue = false)
+
+    override val primaryIcon: SignalIconModel.CellularTypeIconModel.Cellular? by
+        _dualSim.map { it?.primary }.hydratedStateOf(initialValue = null)
+
+    override val secondaryIcon: SignalIconModel.CellularTypeIconModel.Cellular? by
+        _dualSim.map { it?.secondary }.hydratedStateOf(initialValue = null)
+
+    override val primarySubId: Int? by
+        iconViewModelFlow
+            .map { it.firstOrNull()?.subscriptionId }
+            .hydratedStateOf(initialValue = null)
+
+    override val secondarySubId: Int? by
+        iconViewModelFlow
+            .map { it.getOrNull(1)?.subscriptionId }
+            .hydratedStateOf(initialValue = null)
+
+    override val primaryNetworkTypeIcon: Icon.Resource? by
+        flowIfIconIsVisible(
+                iconViewModelFlow.flatMapLatest { viewModels ->
+                    viewModels.firstOrNull()?.networkTypeIcon ?: flowOf(null)
+                }
+            )
+            .hydratedStateOf(initialValue = null)
+
+    override val secondaryNetworkTypeIcon: Icon.Resource? by
+        flowIfIconIsVisible(
+                iconViewModelFlow.flatMapLatest { viewModels ->
+                    viewModels.getOrNull(1)?.networkTypeIcon ?: flowOf(null)
+                }
+            )
+            .hydratedStateOf(initialValue = null)
+
+    override val primaryRoaming: Boolean by
+        _isIconVisible
+            .flatMapLatest { isVisible ->
+                if (isVisible) {
+                    iconViewModelFlow.flatMapLatest { viewModels ->
+                        viewModels.firstOrNull()?.roaming ?: flowOf(false)
+                    }
+                } else {
+                    flowOf(false)
+                }
+            }
+            .hydratedStateOf(initialValue = false)
+
+    override val secondaryRoaming: Boolean by
+        _isIconVisible
+            .flatMapLatest { isVisible ->
+                if (isVisible) {
+                    iconViewModelFlow.flatMapLatest { viewModels ->
+                        viewModels.getOrNull(1)?.roaming ?: flowOf(false)
+                    }
+                } else {
+                    flowOf(false)
+                }
+            }
             .hydratedStateOf(initialValue = false)
 
     private fun <T> flowIfIconIsVisible(flow: Flow<T>): Flow<T?> {

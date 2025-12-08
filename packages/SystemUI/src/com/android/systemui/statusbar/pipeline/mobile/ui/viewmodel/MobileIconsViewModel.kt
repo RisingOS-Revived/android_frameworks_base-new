@@ -29,6 +29,7 @@ import com.android.systemui.statusbar.pipeline.dagger.MobileSummaryLog
 import com.android.systemui.statusbar.pipeline.mobile.StatusBarMobileIconKairos
 import com.android.systemui.statusbar.pipeline.mobile.domain.interactor.MobileIconsInteractor
 import com.android.systemui.statusbar.pipeline.mobile.ui.MobileViewLogger
+import com.android.systemui.statusbar.pipeline.mobile.ui.SignalIconLoader
 import com.android.systemui.statusbar.pipeline.mobile.ui.VerboseMobileViewLogger
 import com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernStatusBarMobileView
 import com.android.systemui.statusbar.pipeline.shared.ConnectivityConstants
@@ -61,6 +62,7 @@ constructor(
     private val interactor: MobileIconsInteractor,
     private val airplaneModeInteractor: AirplaneModeInteractor,
     private val constants: ConnectivityConstants,
+    private val signalIconLoader: SignalIconLoader,
     @MobileSummaryLog private val tableLogger: TableLogBuffer,
     @Background private val scope: CoroutineScope,
 ) {
@@ -141,6 +143,7 @@ constructor(
                 interactor.getMobileConnectionInteractorForSubId(subId),
                 airplaneModeInteractor,
                 constants,
+                signalIconLoader,
                 vmScope,
             )
 
