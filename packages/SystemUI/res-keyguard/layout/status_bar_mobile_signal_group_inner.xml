@@ -50,12 +50,14 @@
                 android:paddingEnd="2dp"
                 />
         </FrameLayout>
-        <FrameLayout
+        <LinearLayout
             android:id="@+id/mobile_type_container"
             android:layout_height="@dimen/status_bar_mobile_container_height"
             android:layout_width="wrap_content"
             android:layout_marginStart="2.5sp"
             android:layout_marginEnd="1sp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:visibility="gone"
             >
             <ImageView
@@ -65,7 +67,18 @@
                 android:layout_gravity="center_vertical"
                 android:adjustViewBounds="true"
                 />
-        </FrameLayout>
+            <TextView
+                android:id="@+id/mobile_roaming_beside"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:layout_marginStart="1dp"
+                android:text="R"
+                android:textSize="6sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                android:includeFontPadding="false" />
+        </LinearLayout>
         <Space
             android:id="@+id/mobile_hd_space"
             android:layout_height="match_parent"
