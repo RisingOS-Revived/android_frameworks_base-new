@@ -29,6 +29,8 @@ import com.android.systemui.kairos.stateOf
 import com.android.systemui.lifecycle.ExclusiveActivatable
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.statusbar.connectivity.ui.MobileContextProvider
+import com.android.systemui.statusbar.pipeline.mobile.domain.model.SignalIconModel
+import com.android.systemui.statusbar.pipeline.mobile.ui.SignalIconLoader
 import com.android.systemui.statusbar.pipeline.mobile.ui.model.DualSim
 import com.android.systemui.statusbar.pipeline.mobile.ui.model.MobileContentDescription
 import com.android.systemui.statusbar.pipeline.mobile.ui.model.tryParseDualSim
@@ -48,6 +50,8 @@ constructor(
 
     private val builder = kairosBuilder()
 
+    private val signalIconLoader = SignalIconLoader(context)
+
     private val isStackable: Boolean by
         builder.hydratedComposeStateOf(
             "StackedMobileIconViewModelKairos.isStackable",
@@ -62,6 +66,9 @@ constructor(
                 addAll(iconsBySubId.values.asSequence().filter { it.subscriptionId != activeSubId })
             }
         }
+
+    override val useCustomOverlays: Boolean
+        get() = signalIconLoader.hasOverlayIcons()
 
     override val dualSim: DualSim? by
         builder.hydratedComposeStateOf(
@@ -153,6 +160,70 @@ constructor(
 
     override val isIconVisible: Boolean
         get() = isStackable && dualSim != null
+
+    override val primaryIcon: SignalIconModel.CellularTypeIconModel.Cellular? by
+        builder.hydratedComposeStateOf(
+            "StackedMobileIconViewModelKairos.primaryIcon",
+            iconList.flatMap { icons ->
+                icons.firstOrNull()?.icon?.map {
+                    it as? SignalIconModel.CellularTypeIconModel.Cellular
+                } ?: stateOf(null)
+            },
+            initialValue = null,
+        )
+
+    override val secondaryIcon: SignalIconModel.CellularTypeIconModel.Cellular? by
+        builder.hydratedComposeStateOf(
+            "StackedMobileIconViewModelKairos.secondaryIcon",
+            iconList.flatMap { icons ->
+                icons.getOrNull(1)?.icon?.map {
+                    it as? SignalIconModel.CellularTypeIconModel.Cellular
+                } ?: stateOf(null)
+            },
+            initialValue = null,
+        )
+
+    override val primarySubId: Int? by
+        builder.hydratedComposeStateOf(
+            "StackedMobileIconViewModelKairos.primarySubId",
+            iconList.map { it.firstOrNull()?.subscriptionId },
+            initialValue = null,
+        )
+
+    override val secondarySubId: Int? by
+        builder.hydratedComposeStateOf(
+            "StackedMobileIconViewModelKairos.secondarySubId",
+            iconList.map { it.getOrNull(1)?.subscriptionId },
+            initialValue = null,
+        )
+
+    override val primaryNetworkTypeIcon: Icon.Resource? by
+        builder.hydratedComposeStateOf(
+            "StackedMobileIconViewModelKairos.primaryNetworkTypeIcon",
+            iconList.flatMap { icons -> icons.firstOrNull()?.networkTypeIcon ?: stateOf(null) },
+            initialValue = null,
+        )
+
+    override val secondaryNetworkTypeIcon: Icon.Resource? by
+        builder.hydratedComposeStateOf(
+            "StackedMobileIconViewModelKairos.secondaryNetworkTypeIcon",
+            iconList.flatMap { icons -> icons.getOrNull(1)?.networkTypeIcon ?: stateOf(null) },
+            initialValue = null,
+        )
+
+    override val primaryRoaming: Boolean by
+        builder.hydratedComposeStateOf(
+            "StackedMobileIconViewModelKairos.primaryRoaming",
+            iconList.flatMap { icons -> icons.firstOrNull()?.roaming ?: stateOf(false) },
+            initialValue = false,
+        )
+
+    override val secondaryRoaming: Boolean by
+        builder.hydratedComposeStateOf(
+            "StackedMobileIconViewModelKairos.secondaryRoaming",
+            iconList.flatMap { icons -> icons.getOrNull(1)?.roaming ?: stateOf(false) },
+            initialValue = false,
+        )
 
     override suspend fun onActivated() {
         builder.activateIn(kairosNetwork)
