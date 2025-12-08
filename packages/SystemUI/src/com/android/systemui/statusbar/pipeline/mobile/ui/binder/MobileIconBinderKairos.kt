@@ -16,6 +16,7 @@
 
 package com.android.systemui.statusbar.pipeline.mobile.ui.binder
 
+import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.view.View
@@ -28,6 +29,7 @@ import com.android.settingslib.graph.SignalDrawable
 import com.android.systemui.common.ui.binder.IconViewBinder
 import com.android.systemui.kairos.BuildScope
 import com.android.systemui.kairos.BuildSpec
+import com.android.systemui.kairos.ConflatedMutableEvents
 import com.android.systemui.kairos.KairosNetwork
 import com.android.systemui.kairos.MutableState
 import com.android.systemui.kairos.combine
@@ -39,6 +41,7 @@ import com.android.systemui.res.R
 import com.android.systemui.statusbar.StatusBarIconView
 import com.android.systemui.statusbar.pipeline.mobile.domain.model.SignalIconModel
 import com.android.systemui.statusbar.pipeline.mobile.ui.MobileViewLogger
+import com.android.systemui.statusbar.pipeline.mobile.ui.SignalIconLoader
 import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.LocationBasedMobileViewModelKairos
 import com.android.systemui.statusbar.pipeline.shared.ui.binder.ModernStatusBarViewBinding
 import com.android.systemui.statusbar.pipeline.shared.ui.binder.ModernStatusBarViewVisibilityHelper
@@ -50,6 +53,15 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 
 object MobileIconBinderKairos {
+
+    private var signalIconLoader: SignalIconLoader? = null
+
+    private fun initSignalIconLoader(context: Context): SignalIconLoader {
+        if (signalIconLoader == null) {
+            signalIconLoader = SignalIconLoader(context)
+        }
+        return signalIconLoader!!
+    }
 
     fun bind(
         subId: Int,
@@ -200,21 +212,25 @@ object MobileIconBinderKairos {
             }
 
             // Set the icon for the triangle
-            viewModel.icon.pairwise(initialPreviousValue = null).observe(
-                name = nameTag { "MobileIconBinderKairos.setIcon" }
-            ) { (oldIcon, newIcon) ->
+            val loader = initSignalIconLoader(view.context)
+            var currentIcon: SignalIconModel? = null
+
+            fun drawIcon(newIcon: SignalIconModel, forceRequestLayout: Boolean) {
+                val oldIcon = currentIcon
+                currentIcon = newIcon
                 val shouldRequestLayout =
-                    when {
-                        oldIcon == null -> true
-                        oldIcon::class != newIcon::class &&
-                            (oldIcon is SignalIconModel.Satellite ||
-                                newIcon is SignalIconModel.Satellite) -> true
-                        oldIcon is SignalIconModel.CellularTypeIconModel &&
-                            newIcon is SignalIconModel.CellularTypeIconModel -> {
-                            oldIcon.numberOfLevels != newIcon.numberOfLevels
+                    forceRequestLayout ||
+                        when {
+                            oldIcon == null -> true
+                            oldIcon::class != newIcon::class &&
+                                (oldIcon is SignalIconModel.Satellite ||
+                                    newIcon is SignalIconModel.Satellite) -> true
+                            oldIcon is SignalIconModel.CellularTypeIconModel &&
+                                newIcon is SignalIconModel.CellularTypeIconModel -> {
+                                oldIcon.numberOfLevels != newIcon.numberOfLevels
+                            }
+                            else -> false
                         }
-                        else -> false
-                    }
                 if (newIcon is SignalIconModel.CellularTypeIconModel) {
                     val packedSignalDrawableState = newIcon.toSignalDrawableState()
                     viewModel.verboseLogger?.logBinderReceivedSignalCellularTypeIcon(
@@ -224,8 +240,24 @@ object MobileIconBinderKairos {
                         packedSignalDrawableState = packedSignalDrawableState,
                         shouldRequestLayout = shouldRequestLayout,
                     )
-                    iconView.setImageDrawable(mobileDrawable)
-                    mobileDrawable.level = packedSignalDrawableState
+
+                    val overlayDrawable =
+                        if (
+                            newIcon is SignalIconModel.CellularTypeIconModel.Cellular &&
+                                loader.hasOverlayIcons()
+                        ) {
+                            val targetSize = mobileDrawable.intrinsicWidth.takeIf { it > 0 }
+                            loader.loadSignalIcon(newIcon.level, newIcon.numberOfLevels, targetSize)
+                        } else {
+                            null
+                        }
+
+                    if (overlayDrawable != null) {
+                        iconView.setImageDrawable(overlayDrawable)
+                    } else {
+                        iconView.setImageDrawable(mobileDrawable)
+                        mobileDrawable.level = packedSignalDrawableState
+                    }
                     viewModel.verboseLogger?.logBinderSignalIconResult(
                         parentView = view,
                         subId = viewModel.subscriptionId,
@@ -242,6 +274,29 @@ object MobileIconBinderKairos {
                 if (shouldRequestLayout) {
                     iconView.requestLayout()
                 }
+            }
+
+            viewModel.icon.observe(name = nameTag { "MobileIconBinderKairos.setIcon" }) { newIcon
+                ->
+                drawIcon(newIcon, forceRequestLayout = false)
+            }
+
+            // Bridge SignalIconLoader's external reload callback (fired when the user toggles the
+            // custom-overlay setting) into the Kairos graph, so the icon is redrawn immediately
+            // instead of waiting for the next unrelated icon-model emission.
+            val reloadTrigger =
+                ConflatedMutableEvents<Unit>(nameTag { "MobileIconBinderKairos.reload" })
+            launchEffect(name = nameTag { "MobileIconBinderKairos.reloadCallbackEffect" }) {
+                val reloadCallback: () -> Unit = { reloadTrigger.emit(Unit) }
+                loader.addReloadCallback(reloadCallback)
+                try {
+                    awaitCancellation()
+                } finally {
+                    loader.removeReloadCallback(reloadCallback)
+                }
+            }
+            reloadTrigger.observe(name = nameTag { "MobileIconBinderKairos.applyReload" }) {
+                currentIcon?.let { drawIcon(it, forceRequestLayout = true) }
             }
 
             viewModel.contentDescription.observe(

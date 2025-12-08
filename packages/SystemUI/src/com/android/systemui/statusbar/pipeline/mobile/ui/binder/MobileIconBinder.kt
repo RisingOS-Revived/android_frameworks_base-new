@@ -17,6 +17,7 @@
 package com.android.systemui.statusbar.pipeline.mobile.ui.binder
 
 import android.annotation.ColorInt
+import android.content.Context
 import android.content.res.ColorStateList
 import android.view.View
 import android.view.View.GONE
@@ -24,7 +25,9 @@ import android.view.View.VISIBLE
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.Space
+import android.widget.TextView
 import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -40,18 +43,30 @@ import com.android.systemui.statusbar.StatusBarIconView.STATE_HIDDEN
 import com.android.systemui.statusbar.core.NewStatusBarIcons
 import com.android.systemui.statusbar.pipeline.mobile.domain.model.SignalIconModel
 import com.android.systemui.statusbar.pipeline.mobile.ui.MobileViewLogger
+import com.android.systemui.statusbar.pipeline.mobile.ui.SignalIconLoader
 import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.LocationBasedMobileViewModel
 import com.android.systemui.statusbar.pipeline.shared.ui.binder.ModernStatusBarViewBinding
 import com.android.systemui.statusbar.pipeline.shared.ui.binder.ModernStatusBarViewVisibilityHelper
-import com.android.systemui.util.kotlin.pairwiseBy
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 data class MobileIconColors(@ColorInt val tint: Int, @ColorInt val contrast: Int)
 
 object MobileIconBinder {
     /** Binds the view to the view-model, continuing to update the former based on the latter */
+
+    private var signalIconLoader: SignalIconLoader? = null
+
+    private fun initSignalIconLoader(context: Context): SignalIconLoader {
+        if (signalIconLoader == null) {
+            signalIconLoader = SignalIconLoader(context)
+        }
+        return signalIconLoader!!
+    }
+
     @JvmStatic
     fun bind(
         view: ViewGroup,
@@ -64,12 +79,13 @@ object MobileIconBinder {
         val activityIn = view.requireViewById<ImageView>(R.id.mobile_in)
         val activityOut = view.requireViewById<ImageView>(R.id.mobile_out)
         val networkTypeView = view.requireViewById<ImageView>(R.id.mobile_type)
-        val networkTypeContainer = view.requireViewById<FrameLayout>(R.id.mobile_type_container)
+        val networkTypeContainer = view.requireViewById<LinearLayout>(R.id.mobile_type_container)
         val iconView = view.requireViewById<ImageView>(R.id.mobile_signal)
         val mobileDrawable = SignalDrawable(view.context)
         val mobileHdView = view.requireViewById<ImageView>(R.id.mobile_hd)
         val mobileHdSpace = view.requireViewById<Space>(R.id.mobile_hd_space)
         val endSideRoamingView = view.requireViewById<ImageView>(R.id.mobile_roaming_updated)
+        val roamingBesideView = view.requireViewById<TextView>(R.id.mobile_roaming_beside)
         val dotView = view.requireViewById<StatusBarIconView>(R.id.status_bar_dot)
 
         view.isVisible = viewModel.isVisible.value
@@ -131,10 +147,23 @@ object MobileIconBinder {
 
                     // Set the icon for the triangle
                     launch {
-                        viewModel.icon
-                            .pairwiseBy(initialValue = null) { oldIcon, newIcon ->
-                                // Make sure we requestLayout if the number of levels changes
-                                val shouldRequestLayout =
+                        val loader = initSignalIconLoader(view.context)
+                        val reloadTrigger = callbackFlow {
+                            val callback: () -> Unit = { trySend(Unit) }
+                            loader.addReloadCallback(callback)
+                            awaitClose { loader.removeReloadCallback(callback) }
+                        }
+
+                        var currentIcon: SignalIconModel? = null
+
+                        fun drawIcon(newIcon: SignalIconModel, forceRequestLayout: Boolean) {
+                            val oldIcon = currentIcon
+                            currentIcon = newIcon
+                            // Make sure we requestLayout if the number of levels changes, or if
+                            // this redraw was triggered by an icon-overlay reload (the overlay
+                            // drawable's size may differ from the vector fallback).
+                            val shouldRequestLayout =
+                                forceRequestLayout ||
                                     when {
                                         oldIcon == null -> true
                                         oldIcon::class != newIcon::class &&
@@ -146,39 +175,67 @@ object MobileIconBinder {
                                         }
                                         else -> false
                                     }
-                                Pair(shouldRequestLayout, newIcon)
-                            }
-                            .collect { (shouldRequestLayout, newIcon) ->
-                                if (newIcon is SignalIconModel.CellularTypeIconModel) {
-                                    val packedSignalDrawableState = newIcon.toSignalDrawableState()
-                                    viewModel.verboseLogger
-                                        ?.logBinderReceivedSignalCellularTypeIcon(
-                                            parentView = view,
-                                            subId = viewModel.subscriptionId,
-                                            icon = newIcon,
-                                            packedSignalDrawableState = packedSignalDrawableState,
-                                            shouldRequestLayout = shouldRequestLayout,
+                            if (newIcon is SignalIconModel.CellularTypeIconModel) {
+                                val packedSignalDrawableState = newIcon.toSignalDrawableState()
+                                viewModel.verboseLogger?.logBinderReceivedSignalCellularTypeIcon(
+                                    parentView = view,
+                                    subId = viewModel.subscriptionId,
+                                    icon = newIcon,
+                                    packedSignalDrawableState = packedSignalDrawableState,
+                                    shouldRequestLayout = shouldRequestLayout,
+                                )
+
+                                val overlayDrawable =
+                                    if (
+                                        newIcon is
+                                            SignalIconModel.CellularTypeIconModel.Cellular &&
+                                            loader.hasOverlayIcons()
+                                    ) {
+                                        val targetSize =
+                                            mobileDrawable.intrinsicWidth.takeIf { it > 0 }
+                                        loader.loadSignalIcon(
+                                            newIcon.level,
+                                            newIcon.numberOfLevels,
+                                            targetSize,
                                         )
+                                    } else {
+                                        null
+                                    }
+
+                                if (overlayDrawable != null) {
+                                    iconView.setImageDrawable(overlayDrawable)
+                                } else {
                                     iconView.setImageDrawable(mobileDrawable)
                                     mobileDrawable.level = packedSignalDrawableState
-                                    viewModel.verboseLogger?.logBinderSignalIconResult(
-                                        parentView = view,
-                                        subId = viewModel.subscriptionId,
-                                        unpackedLevel = mobileDrawable.unpackLevel(),
-                                    )
-                                } else if (newIcon is SignalIconModel.Satellite) {
-                                    viewModel.verboseLogger?.logBinderReceivedSignalSatelliteIcon(
-                                        parentView = view,
-                                        subId = viewModel.subscriptionId,
-                                        icon = newIcon,
-                                    )
-                                    IconViewBinder.bind(newIcon.icon, iconView)
                                 }
-
-                                if (shouldRequestLayout) {
-                                    iconView.requestLayout()
-                                }
+                                viewModel.verboseLogger?.logBinderSignalIconResult(
+                                    parentView = view,
+                                    subId = viewModel.subscriptionId,
+                                    unpackedLevel = mobileDrawable.unpackLevel(),
+                                )
+                            } else if (newIcon is SignalIconModel.Satellite) {
+                                viewModel.verboseLogger?.logBinderReceivedSignalSatelliteIcon(
+                                    parentView = view,
+                                    subId = viewModel.subscriptionId,
+                                    icon = newIcon,
+                                )
+                                IconViewBinder.bind(newIcon.icon, iconView)
                             }
+                            if (shouldRequestLayout) {
+                                iconView.requestLayout()
+                            }
+                        }
+
+                        launch {
+                            viewModel.icon.collect { newIcon ->
+                                drawIcon(newIcon, forceRequestLayout = false)
+                            }
+                        }
+                        launch {
+                            reloadTrigger.collect {
+                                currentIcon?.let { drawIcon(it, forceRequestLayout = true) }
+                            }
+                        }
                     }
 
                     launch {
@@ -220,6 +277,15 @@ object MobileIconBinder {
                             } else {
                                 networkTypeView.imageTintList =
                                     ColorStateList.valueOf(iconTint.value.tint)
+                            }
+                        }
+                    }
+
+                    launch {
+                        viewModel.showRoamingBeside.distinctUntilChanged().collect { showBeside ->
+                            roamingBesideView.isVisible = showBeside
+                            if (showBeside) {
+                                networkTypeContainer.requestLayout()
                             }
                         }
                     }
@@ -270,6 +336,7 @@ object MobileIconBinder {
                             mobileHdView.imageTintList = tint
                             activityIn.imageTintList = tint
                             activityOut.imageTintList = tint
+                            roamingBesideView.setTextColor(colors.tint)
                             dotView.setDecorColor(colors.tint)
                         }
                     }
