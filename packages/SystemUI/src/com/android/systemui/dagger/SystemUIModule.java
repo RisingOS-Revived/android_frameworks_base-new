@@ -337,6 +337,7 @@ import javax.inject.Named;
         PerDisplayRepositoriesModule.class,
         InputDeviceModule.class,
         CutoutProgressModule.class,
+        com.android.systemui.statusbar.pipeline.wifi.ui.dagger.WifiIconModule.class,
 },
         subcomponents = {
                 ComplicationComponent.class,
