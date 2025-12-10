@@ -97,10 +97,18 @@ object WifiViewBinder {
 
                 launch {
                     viewModel.wifiIcon.collect { wifiIcon ->
-                        view.isVisible = wifiIcon is WifiIcon.Visible
-                        if (wifiIcon is WifiIcon.Visible) {
-                            IconViewBinder.bind(wifiIcon.icon, iconView)
-                        }
+                        view.isVisible =
+                            when (wifiIcon) {
+                                is WifiIcon.Visible -> {
+                                    IconViewBinder.bind(wifiIcon.icon, iconView)
+                                    true
+                                }
+                                is WifiIcon.VisibleWithOverlay -> {
+                                    IconViewBinder.bind(wifiIcon.icon, iconView)
+                                    true
+                                }
+                                else -> false
+                            }
                     }
                 }
 
@@ -155,14 +163,15 @@ object WifiViewBinder {
 
         return object : ModernStatusBarViewBinding {
             override fun getShouldIconBeVisible(): Boolean {
-                return viewModel.wifiIcon.value is WifiIcon.Visible
+                return viewModel.wifiIcon.value is WifiIcon.Visible ||
+                       viewModel.wifiIcon.value is WifiIcon.VisibleWithOverlay
             }
 
             override fun onVisibilityStateChanged(@StatusBarIconView.VisibleState state: Int) {
                 visibilityState.value = state
             }
 
-            override fun onIconTintChanged(newTint: Int, contrastTint: Int /* unused */) {
+            override fun onIconTintChanged(newTint: Int, contrastTint: Int) {
                 iconTint.value = newTint
             }
 
