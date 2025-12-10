@@ -18,7 +18,10 @@ package com.android.systemui.statusbar.systemstatusicons.wifi.ui.viewmodel
 
 import android.content.Context
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import com.android.systemui.common.shared.model.Icon
+import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.lifecycle.HydratedActivatable
 import com.android.systemui.statusbar.pipeline.wifi.ui.model.WifiIcon
 import com.android.systemui.statusbar.pipeline.wifi.ui.viewmodel.WifiViewModel
@@ -69,13 +72,31 @@ constructor(@Assisted private val context: Context, wifiViewModel: WifiViewModel
         )
 
     override val visible: Boolean
-        get() = wifiIcon is WifiIcon.Visible
+        get() = wifiIcon is WifiIcon.Visible || wifiIcon is WifiIcon.VisibleWithOverlay
 
     override val icon: Icon?
-        get() = (wifiIcon as? WifiIcon.Visible)?.icon
+        get() =
+            when (val icon = wifiIcon) {
+                is WifiIcon.Visible -> icon.icon
+                is WifiIcon.VisibleWithOverlay -> icon.icon
+                else -> null
+            }
 
     @AssistedFactory
     interface Factory {
         fun create(context: Context): WifiIconViewModel
+    }
+
+    companion object {
+        fun provideFactory(
+            assistedFactory: Factory,
+            @Application applicationContext: Context,
+        ): ViewModelProvider.Factory {
+            return object : ViewModelProvider.Factory {
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    return assistedFactory.create(applicationContext) as T
+                }
+            }
+        }
     }
 }
