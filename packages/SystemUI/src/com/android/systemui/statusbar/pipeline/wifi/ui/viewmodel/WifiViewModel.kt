@@ -27,6 +27,7 @@ import com.android.systemui.statusbar.pipeline.shared.data.model.DataActivityMod
 import com.android.systemui.statusbar.pipeline.wifi.domain.interactor.WifiInteractor
 import com.android.systemui.statusbar.pipeline.wifi.shared.WifiConstants
 import com.android.systemui.statusbar.pipeline.wifi.shared.model.WifiNetworkModel
+import com.android.systemui.statusbar.pipeline.wifi.ui.WifiIconLoader
 import com.android.systemui.statusbar.pipeline.wifi.ui.model.VoWifiIcon
 import com.android.systemui.statusbar.pipeline.wifi.ui.model.WifiIcon
 import com.android.systemui.statusbar.pipeline.wifi.ui.model.icon
@@ -34,6 +35,7 @@ import com.android.systemui.statusbar.systemstatusicons.SystemStatusIconsInCompo
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -41,6 +43,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /**
  * Models the UI state for the status bar wifi icon.
@@ -57,22 +60,51 @@ constructor(
     private val context: Context,
     @WifiTableLog wifiTableLogBuffer: TableLogBuffer,
     interactor: WifiInteractor,
-    @Background scope: CoroutineScope,
+    private val wifiIconLoader: WifiIconLoader,
+    @Background private val scope: CoroutineScope,
     wifiConstants: WifiConstants,
 ) : WifiViewModelCommon {
+
+    private val refreshTrigger = MutableSharedFlow<Unit>(replay = 1).apply {
+        tryEmit(Unit)
+    }
+
+    init {
+        wifiIconLoader.addReloadCallback {
+            scope.launch {
+                refreshTrigger.emit(Unit)
+            }
+        }
+    }
+
     override val wifiIcon: StateFlow<WifiIcon> =
         combine(
                 interactor.isEnabled,
                 interactor.isDefault,
                 interactor.isForceHidden,
                 interactor.wifiNetwork,
-            ) { isEnabled, isDefault, isForceHidden, wifiNetwork ->
+                refreshTrigger
+            ) { isEnabled, isDefault, isForceHidden, wifiNetwork, _ ->
                 if (!isEnabled || isForceHidden || wifiNetwork is WifiNetworkModel.CarrierMerged) {
                     return@combine WifiIcon.Hidden
                 }
 
                 // Don't show any hotspot info in the status bar.
-                val icon = WifiIcon.fromModel(wifiNetwork, context, showHotspotInfo = false)
+                val icon = when (wifiNetwork) {
+                    is WifiNetworkModel.Active -> {
+                        if (wifiIconLoader.hasOverlayIcons()) {
+                            val overlayDrawable = wifiIconLoader.loadWifiIcon(wifiNetwork.level, 4)
+                            if (overlayDrawable != null) {
+                                WifiIcon.fromOverlay(overlayDrawable, wifiNetwork, context)
+                            } else {
+                                WifiIcon.fromModel(wifiNetwork, context, showHotspotInfo = false)
+                            }
+                        } else {
+                            WifiIcon.fromModel(wifiNetwork, context, showHotspotInfo = false)
+                        }
+                    }
+                    else -> WifiIcon.fromModel(wifiNetwork, context, showHotspotInfo = false)
+                }
 
                 return@combine when {
                     isDefault -> icon

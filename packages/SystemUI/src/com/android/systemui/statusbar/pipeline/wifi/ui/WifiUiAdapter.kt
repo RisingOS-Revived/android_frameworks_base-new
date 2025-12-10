@@ -64,7 +64,7 @@ constructor(
                 launch {
                     locationViewModel.wifiIcon.collect { wifiIcon ->
                         // Only notify the icon controller if we want to *render* the new icon.
-                        if (wifiIcon is WifiIcon.Visible) {
+                        if (wifiIcon is WifiIcon.Visible || wifiIcon is WifiIcon.VisibleWithOverlay) {
                             iconController.setNewWifiIcon()
                         }
                     }
