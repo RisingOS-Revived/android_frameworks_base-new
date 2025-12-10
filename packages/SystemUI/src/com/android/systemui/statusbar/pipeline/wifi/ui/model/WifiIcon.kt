@@ -18,6 +18,7 @@ package com.android.systemui.statusbar.pipeline.wifi.ui.model
 
 import android.annotation.DrawableRes
 import android.content.Context
+import android.graphics.drawable.Drawable
 import androidx.annotation.StringRes
 import androidx.annotation.VisibleForTesting
 import com.android.settingslib.AccessibilityContentDescriptions.WIFI_CONNECTION_STRENGTH
@@ -49,6 +50,15 @@ sealed interface WifiIcon : Diffable<WifiIcon> {
         override fun toString() = contentDescription.description.toString()
     }
 
+    class VisibleWithOverlay(
+        val drawable: Drawable,
+        val contentDescription: ContentDescription.Loaded,
+    ) : WifiIcon {
+        val icon = Icon.Loaded(drawable, contentDescription)
+
+        override fun toString() = "overlay:${contentDescription.description}"
+    }
+
     override fun logDiffs(prevVal: WifiIcon, row: TableRowLogger) {
         if (prevVal.toString() != toString()) {
             row.logChange(COL_ICON, toString())
@@ -63,6 +73,20 @@ sealed interface WifiIcon : Diffable<WifiIcon> {
         @StringRes
         @VisibleForTesting
         internal val NO_INTERNET = R.string.data_connection_no_internet
+
+        fun fromOverlay(
+            drawable: Drawable,
+            model: WifiNetworkModel.Active,
+            context: Context,
+        ): WifiIcon {
+            val levelDesc = context.getString(WIFI_CONNECTION_STRENGTH[model.level])
+            val description = if (model.showExclamation) {
+                ContentDescription.Loaded("$levelDesc,${context.getString(NO_INTERNET)}")
+            } else {
+                ContentDescription.Loaded(levelDesc)
+            }
+            return VisibleWithOverlay(drawable, description)
+        }
 
         /**
          * Mapping from a [WifiNetworkModel] to the appropriate [WifiIcon].
