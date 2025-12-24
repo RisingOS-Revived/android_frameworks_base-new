@@ -173,6 +173,8 @@ import com.android.systemui.util.settings.SecureSettings;
 
 import dagger.Lazy;
 
+import com.android.systemui.globalactions.compose.GlobalActionsComposeDialog;
+
 import lineageos.app.LineageGlobalActions;
 import lineageos.providers.LineageSettings;
 
@@ -220,6 +222,8 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
     private static final int TOAST_VISIBLE_TIME = 3500;
 
     private static final int DIALOG_WINDOW_TYPE = TYPE_STATUS_BAR_SUB_PANEL;
+
+    private static final String SETTINGS_KEY_USE_COMPOSE_DIALOG = "global_actions_use_compose_dialog";
 
     private final Context mContext;
     private final GlobalActionsManager mWindowManagerFuncs;
@@ -304,6 +308,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
     private int mGlobalActionDialogTimeout;
     private final Handler mHandler;
     private final BlurUtils mBlurUtils;
+    private boolean mUsingComposeDialog;
 
     private final UserTracker.Callback mOnUserSwitched = new UserTracker.Callback() {
         @Override
@@ -637,7 +642,9 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
                         new DialogCuj(InteractionJankMonitor.CUJ_SHADE_DIALOG_OPEN,
                                 INTERACTION_JANK_TAG)) : null;
         mUserTracker.addCallback(mOnUserSwitched, mBackgroundExecutor);
-        if (controller != null) {
+        // The transition animator cannot animate the compose wrapper, whose own
+        // window is never shown; letting it hook that window leaks the launch view.
+        if (controller != null && !mUsingComposeDialog) {
             mDialogTransitionAnimator.show(mDialog, controller);
         } else {
             mDialog.show();
@@ -895,6 +902,15 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
      * @return A new dialog.
      */
     protected ActionsDialogLite createDialog(int displayId) {
+        mUsingComposeDialog = shouldUseComposeDialog();
+        if (mUsingComposeDialog) {
+            return createComposeDialog(displayId);
+        } else {
+            return createLegacyDialog(displayId);
+        }
+    }
+
+    private ActionsDialogLite createLegacyDialog(int displayId) {
         final Context context = getContextForDisplay(displayId);
         initDialogItems();
 
@@ -931,6 +947,94 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         dialog.setOnShowListener(this);
 
         return dialog;
+    }
+
+    private ActionsDialogLite createComposeDialog(int displayId) {
+        final Context context = getContextForDisplay(displayId);
+        initDialogItems();
+
+        return new ActionsDialogLite(
+                context,
+                com.android.systemui.res.R.style.Theme_SystemUI_Dialog_GlobalActionsLite,
+                mAdapter,
+                mOverflowAdapter,
+                mSysuiColorExtractor,
+                mStatusBarService,
+                mLightBarController,
+                mKeyguardStateController,
+                mTopUiController,
+                mStatusBarWindowControllerStore.forDisplay(context.getDisplayId()),
+                this::onRefresh,
+                mKeyguardShowing,
+                mPowerAdapter,
+                mRestartAdapter,
+                mUsersAdapter,
+                mUiEventLogger,
+                mShadeController,
+                mKeyguardUpdateMonitor,
+                mLockPatternUtils,
+                mSelectedUserInteractor,
+                mBlurUtils) {
+            // The compose dialog owns the real window; this wrapper only adapts it to
+            // the ActionsDialogLite contract expected by GlobalActionsDialogLite.
+            private GlobalActionsComposeDialog mComposeDialog;
+            private boolean mDismissNotified;
+
+            @Override
+            public void show() {
+                if (isShowing()) {
+                    return;
+                }
+                mComposeDialog = new GlobalActionsComposeDialog(
+                        mContext,
+                        mItems,
+                        action -> {
+                            handleActionClick(action);
+                            return kotlin.Unit.INSTANCE;
+                        },
+                        action -> handleActionLongClick(action),
+                        () -> {
+                            rescheduleBurninTimeout(mGlobalActionDialogTimeout);
+                            return kotlin.Unit.INSTANCE;
+                        },
+                        () -> {
+                            notifyDismissed();
+                            return kotlin.Unit.INSTANCE;
+                        },
+                        mBlurUtils);
+                mComposeDialog.show();
+                GlobalActionsDialogLite.this.onShow(this);
+            }
+
+            @Override
+            public void dismiss() {
+                if (mComposeDialog != null && mComposeDialog.isShowing()) {
+                    mComposeDialog.dismiss();
+                } else {
+                    notifyDismissed();
+                }
+            }
+
+            @Override
+            public void hide() {
+                if (mComposeDialog != null) {
+                    mComposeDialog.hide();
+                }
+            }
+
+            @Override
+            public boolean isShowing() {
+                return mComposeDialog != null && mComposeDialog.isShowing();
+            }
+
+            private void notifyDismissed() {
+                mComposeDialog = null;
+                if (!mDismissNotified) {
+                    mDismissNotified = true;
+                    GlobalActionsDialogLite.this.onDismiss(this);
+                }
+            }
+        };
     }
 
     @VisibleForTesting
@@ -2207,6 +2311,36 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
                 item.onPress();
             }
         }
+    }
+
+    private void handleActionClick(GlobalActionsDialogLite.Action action) {
+        if (!(action instanceof SilentModeTriStateAction)) {
+            if (mDialog != null) {
+                if (!(action instanceof PowerOptionsAction ||
+                        (action instanceof RestartAction && shouldShowRestartSubmenu()) ||
+                        (action instanceof UsersAction))) {
+                    mDialogTransitionAnimator.disableAllCurrentDialogsExitAnimations();
+                    mDialog.dismiss();
+                }
+            }
+            action.onPress();
+        }
+    }
+
+    private boolean handleActionLongClick(GlobalActionsDialogLite.Action action) {
+        if (action instanceof LongPressAction) {
+            if (mDialog != null) {
+                mDialogTransitionAnimator.disableAllCurrentDialogsExitAnimations();
+                mDialog.dismiss();
+            }
+            return ((LongPressAction) action).onLongPress();
+        }
+        return false;
+    }
+
+    private boolean shouldUseComposeDialog() {
+        return mSecureSettings.getIntForUser(SETTINGS_KEY_USE_COMPOSE_DIALOG, 1,
+                UserHandle.USER_CURRENT) != 0;
     }
 
     // note: the scheme below made more sense when we were planning on having
