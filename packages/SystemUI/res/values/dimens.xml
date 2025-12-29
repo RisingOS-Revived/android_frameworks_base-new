@@ -705,7 +705,10 @@
     <dimen name="pull_span_min">25dp</dimen>
 
     <dimen name="qs_corner_radius">28dp</dimen>
-    <dimen name="qs_tile_margin_horizontal">8dp</dimen>
+    <dimen name="qs_tile_height">80dp</dimen>
+    <dimen name="qs_tile_margin_horizontal">20dp</dimen>
+    <dimen name="custom_qs_tile_height">72dp</dimen>
+    <dimen name="qs_brightness_slider_height">56dp</dimen>
     <dimen name="qs_tile_margin_vertical">@dimen/qs_tile_margin_horizontal</dimen>
     <dimen name="qs_brightness_margin_top">8dp</dimen>
     <dimen name="brightness_dialog_expanded_width">364dp</dimen>
