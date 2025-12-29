@@ -129,4 +129,17 @@
     <string name="screenrecord_skip_time_summary">Remove the 3 second wait</string>
     <string name="screenrecord_hevc_switch_label">HEVC encoding</string>
     <string name="screenrecord_hevc_switch_summary">Use the more efficient HEVC encoder</string>
+
+    <!-- OneUI QS -->
+    <string name="qs_section_brightness">Brightness</string>
+    <string name="qs_section_tiles">Tiles</string>
+    <string name="qs_section_media">Media</string>
+    <string name="qs_section_edit_title">Customize Quick Settings</string>
+    <string name="qs_section_edit_description">Long press and drag to reorder sections. Tap the eye icon to show/hide sections.</string>
+    <string name="qs_section_reset">Reset to Default</string>
+    <string name="qs_section_edit_button">Customize Layout</string>
+    <string name="qs_edit">Edit</string>
+
+    <!-- Brightness tile -->
+    <string name="quick_settings_brightness_label">Brightness</string>
 </resources>
