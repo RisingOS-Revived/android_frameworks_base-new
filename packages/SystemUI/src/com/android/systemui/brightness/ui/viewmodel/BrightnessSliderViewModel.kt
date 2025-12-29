@@ -17,6 +17,7 @@
 package com.android.systemui.brightness.ui.viewmodel
 
 import android.content.Context
+import android.graphics.drawable.Icon as AndroidIcon
 import androidx.annotation.DrawableRes
 import androidx.annotation.FloatRange
 import androidx.annotation.StringRes
@@ -40,7 +41,6 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * View Model for a brightness slider.
@@ -100,16 +100,9 @@ constructor(
     }
 
     suspend fun loadImage(@DrawableRes resId: Int, context: Context): Icon.Loaded? {
-        return withTimeoutOrNull(500L) {
-            imageLoader
-                .loadDrawable(
-                    android.graphics.drawable.Icon.createWithResource(context, resId),
-                    context = context,
-                    maxHeight = 200,
-                    maxWidth = 200,
-                )
-                ?.asIcon(null, resId)
-        }
+        val androidIcon = AndroidIcon.createWithResource(context, resId)
+        val drawable = imageLoader.loadDrawable(androidIcon, context) ?: return null
+        return drawable.asIcon(null, resId)
     }
 
     /**
@@ -153,11 +146,13 @@ constructor(
                 brightnessLow = R.drawable.ic_brightness_low,
                 brightnessMid = R.drawable.ic_brightness_medium,
                 brightnessHigh = R.drawable.ic_brightness_full,
+                brightnessAuto = R.drawable.ic_brightness_auto,
             )
 
         @DrawableRes
-        fun getIconForPercentage(@FloatRange(0.0, 100.0) percentage: Float): Int {
+        fun getIconForPercentage(@FloatRange(0.0, 100.0) percentage: Float, autoMode: Boolean): Int {
             return when {
+                autoMode -> icons.brightnessAuto
                 percentage <= 20f -> icons.brightnessLow
                 percentage >= 80f -> icons.brightnessHigh
                 else -> icons.brightnessMid
@@ -181,4 +176,5 @@ private data class BrightnessIcons(
     @DrawableRes val brightnessLow: Int,
     @DrawableRes val brightnessMid: Int,
     @DrawableRes val brightnessHigh: Int,
+    @DrawableRes val brightnessAuto: Int,
 )
