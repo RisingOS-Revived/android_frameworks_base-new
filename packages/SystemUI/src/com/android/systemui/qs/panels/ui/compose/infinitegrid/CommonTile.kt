@@ -27,12 +27,14 @@ import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -74,6 +76,7 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -176,6 +179,21 @@ fun LargeTileContent(
                 modifier = Modifier.align(Alignment.Center),
             )
         }
+
+        if (toggleClick != null) {
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(CommonTileDefaults.TileDividerHeight)
+                    .background(colors.secondaryLabel)
+            )
+        }
+
+        Spacer(
+            modifier = Modifier
+                .width(0.5.dp)
+                .height(CommonTileDefaults.TileDividerHeight)
+        )
 
         // Labels
         LargeTileLabels(
@@ -411,22 +429,27 @@ object TileBounceMotionTestKeys {
 }
 
 object CommonTileDefaults {
-    val IconSize = 32.dp
-    val LargeTileIconSize = 28.dp
+    val IconSize = 24.dp
+    val LargeTileIconSize = 24.dp
     val SideIconWidth = 32.dp
     val SideIconHeight = 20.dp
     val ChevronSize = 14.dp
-    val ToggleTargetSize = 56.dp
+    val ToggleTargetSize = 24.dp
     val TileHeight = 72.dp
-    val TileStartPadding = 8.dp
-    val TileEndPadding = 12.dp
+    val TileStartPadding = 23.dp
+    val TileEndPadding = 15.dp
     val TileDualTargetEndPadding = 8.dp
-    val TileArrangementPadding = 6.dp
-    val InactiveCornerRadius = 50.dp
+    val TileArrangementPadding = 8.dp
+    val InactiveCornerRadius = 100.dp
+    val ActiveCornerRadius = 100.dp
     val TileLabelBlurWidth = 32.dp
+    val TileDividerHeight = 16.dp
+    val TilePaddingLarge = 10.dp
     const val TILE_MARQUEE_ITERATIONS = 1
     const val TILE_INITIAL_DELAY_MILLIS = 2000
 
+    @Composable fun tileHeight() = dimensionResource(id = R.dimen.custom_qs_tile_height)
+    
     @Composable
     fun longPressLabelSettings() = stringResource(id = R.string.accessibility_long_click_tile)
 

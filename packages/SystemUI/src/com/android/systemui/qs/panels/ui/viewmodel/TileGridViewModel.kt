@@ -17,15 +17,20 @@
 package com.android.systemui.qs.panels.ui.viewmodel
 
 import androidx.compose.runtime.getValue
+import com.android.systemui.animation.Expandable
 import com.android.systemui.lifecycle.ExclusiveActivatable
 import com.android.systemui.lifecycle.Hydrator
 import com.android.systemui.qs.panels.domain.interactor.GridLayoutTypeInteractor
 import com.android.systemui.qs.panels.shared.model.GridLayoutType
 import com.android.systemui.qs.panels.ui.compose.GridLayout
 import com.android.systemui.qs.pipeline.domain.interactor.CurrentTilesInteractor
+import com.android.systemui.qs.pipeline.domain.model.TileModel
+import com.android.systemui.qs.pipeline.shared.TileSpec
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import javax.inject.Named
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 
 class TileGridViewModel
@@ -33,7 +38,7 @@ class TileGridViewModel
 constructor(
     gridLayoutTypeInteractor: GridLayoutTypeInteractor,
     gridLayoutMap: Map<GridLayoutType, @JvmSuppressWildcards GridLayout>,
-    tilesInteractor: CurrentTilesInteractor,
+    private val tilesInteractor: CurrentTilesInteractor,
     @Named("Default") defaultGridLayout: GridLayout,
 ) : ExclusiveActivatable() {
 
@@ -51,6 +56,14 @@ constructor(
 
     val tileViewModels: List<TileViewModel>
         get() = tileModels.map { TileViewModel(it.tile, it.spec) }
+
+    val tiles: StateFlow<List<TileModel>>
+        get() = tilesInteractor.currentTiles
+
+    fun onTileClick(spec: TileSpec, expandable: Expandable? = null) {
+        val tileViewModel = tileViewModels.firstOrNull { it.spec == spec }
+        tileViewModel?.mainClick(expandable)
+    }
 
     override suspend fun onActivated(): Nothing {
         hydrator.activate()

@@ -109,15 +109,7 @@ constructor(
     }
 
     suspend fun loadImage(@DrawableRes resId: Int, context: Context): Icon.Loaded? {
-        return withTimeoutOrNull(500L) {
-            imageLoader
-                .loadDrawable(
-                    android.graphics.drawable.Icon.createWithResource(context, resId),
-                    maxHeight = 200,
-                    maxWidth = 200,
-                )
-                ?.asIcon(null, resId)
-        }
+        return imageLoader.loadDrawableRes(resId, context)!!.asIcon(null, resId)
     }
 
     /**
@@ -167,11 +159,13 @@ constructor(
                 brightnessLow = R.drawable.ic_brightness_low,
                 brightnessMid = R.drawable.ic_brightness_medium,
                 brightnessHigh = R.drawable.ic_brightness_full,
+                brightnessAuto = R.drawable.ic_brightness_auto,
             )
 
         @DrawableRes
-        fun getIconForPercentage(@FloatRange(0.0, 100.0) percentage: Float): Int {
+        fun getIconForPercentage(@FloatRange(0.0, 100.0) percentage: Float, autoMode: Boolean): Int {
             return when {
+                autoMode -> icons.brightnessAuto
                 percentage <= 20f -> icons.brightnessLow
                 percentage >= 80f -> icons.brightnessHigh
                 else -> icons.brightnessMid
@@ -195,4 +189,5 @@ private data class BrightnessIcons(
     @DrawableRes val brightnessLow: Int,
     @DrawableRes val brightnessMid: Int,
     @DrawableRes val brightnessHigh: Int,
+    @DrawableRes val brightnessAuto: Int,
 )
