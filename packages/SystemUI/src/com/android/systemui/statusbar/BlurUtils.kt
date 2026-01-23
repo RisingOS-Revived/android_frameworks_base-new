@@ -45,23 +45,22 @@ import java.io.PrintWriter
 import javax.inject.Inject
 import kotlin.math.pow
 import kotlin.math.sin
+import kotlinx.coroutines.flow.Flow
 
 @SysUISingleton
 open class BlurUtils
 @Inject
 constructor(
     @Main resources: Resources,
-    blurConfig: BlurConfig,
+    private val blurConfig: BlurConfig,
     private val crossWindowBlurListeners: CrossWindowBlurListeners,
     dumpManager: DumpManager,
 ) : Dumpable {
     val minBlurRadius = resources.getDimensionPixelSize(R.dimen.min_window_blur_radius).toFloat()
-    val maxBlurRadius =
-        if (Flags.notificationShadeBlur()) {
-            blurConfig.maxBlurRadiusPx
-        } else {
-            resources.getDimensionPixelSize(R.dimen.max_window_blur_radius).toFloat()
-        }
+    val maxBlurRadius: Float
+        get() = blurConfig.maxBlurRadiusPx
+
+    val maxBlurRadiusFlow: Flow<Float> = blurConfig.maxBlurRadiusFlow
 
     private var lastAppliedBlur = 0
     private var lastTargetViewRootImpl: ViewRootImpl? = null
