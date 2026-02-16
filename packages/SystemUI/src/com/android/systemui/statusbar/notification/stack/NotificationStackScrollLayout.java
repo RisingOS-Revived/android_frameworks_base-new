@@ -510,6 +510,7 @@ public class NotificationStackScrollLayout
     private int mCornerRadius;
     private int mMinimumPaddings;
     private int mQsTilePadding;
+    private boolean mNotificationsDozing;
     private int mSidePaddings;
     private final Rect mBackgroundAnimationRect = new Rect();
     private final ArrayList<BiConsumer<Float, Float>> mExpandedHeightListeners = new ArrayList<>();
@@ -635,6 +636,30 @@ public class NotificationStackScrollLayout
     public void passSplitShadeStateController(SplitShadeStateController splitShadeStateController) {
         mSplitShadeStateController = splitShadeStateController;
         updateSplitNotificationShade();
+    }
+
+    public void updateProgressBarIndeterminateRunning(boolean panelExpanding,
+            boolean qsExpanding) {
+        boolean shouldRun = !panelExpanding && !qsExpanding;
+        AxAmbientStateEx axAmbientStateEx = Dependency.get(AxAmbientStateEx.class);
+        if (shouldRun == axAmbientStateEx.isProgressBarIndeterminateAnimationRunning()) {
+            return;
+        }
+        axAmbientStateEx.setProgressBarIndeterminateAnimationRunning(shouldRun);
+        for (int i = 0; i < getChildCount(); i++) {
+            View child = getChildAt(i);
+            if (child instanceof ExpandableNotificationRow) {
+                ExpandableNotificationRow row = (ExpandableNotificationRow) child;
+                if (row.getPrivateLayout() != null) {
+                    row.getPrivateLayout()
+                            .setProgressBarIndeterminateAnimationRunning(shouldRun);
+                }
+                if (row.getPublicLayout() != null) {
+                    row.getPublicLayout()
+                            .setProgressBarIndeterminateAnimationRunning(shouldRun);
+                }
+            }
+        }
     }
 
     private final ExpandableView.OnHeightChangedListener mOnChildHeightChangedListener =
@@ -3501,6 +3526,9 @@ public class NotificationStackScrollLayout
                 row.setOnKeyguard(mIsOnLockscreen);
             }
         }
+        if (child instanceof ActivatableNotificationView activatableView) {
+            activatableView.setDozing(mNotificationsDozing);
+        }
         generateAddAnimation(child, false /* fromMoreCard */);
         updateAnimationState(child);
         updateChronometerForChild(child);
@@ -4575,6 +4603,10 @@ public class NotificationStackScrollLayout
 
     protected boolean isInsideQsHeader(MotionEvent ev) {
         SceneContainerFlag.assertInLegacyMode();
+        AxAmbientStateEx axAmbientStateEx = Dependency.get(AxAmbientStateEx.class);
+        if (axAmbientStateEx.getSplitShadeEnabled()) {
+            return false;
+        }
         if (mQSHeaderBoundsProvider == null) {
             return false;
         } else {
@@ -5403,6 +5435,7 @@ public class NotificationStackScrollLayout
             return;
         }
         mAmbientState.setDozing(dozing);
+        setNotificationsDozing(dozing);
         requestChildrenUpdate();
         notifyHeightChangeListener(mShelf);
     }
@@ -5890,6 +5923,9 @@ public class NotificationStackScrollLayout
         mAmbientState.setShelf(mShelf);
         mStateAnimator.setShelf(mShelf);
         shelf.bind(mAmbientState, this, mController.getNotificationRoundnessManager());
+        shelf.setDozing(mNotificationsDozing);
+        shelf.setOnKeyguard(SceneContainerFlag.isEnabled()
+                ? mIsOnLockscreen : mStatusBarState == StatusBarState.KEYGUARD);
     }
 
     /**
@@ -6433,9 +6469,34 @@ public class NotificationStackScrollLayout
      * the notification is pulsing.
      */
     public void setDozeAmount(float dozeAmount) {
+        float previousDozeAmount = mAmbientState.getDozeAmount();
         mAmbientState.setDozeAmount(dozeAmount);
+        if (dozeAmount > previousDozeAmount) {
+            setNotificationsDozing(true);
+        } else if (dozeAmount < previousDozeAmount) {
+            setNotificationsDozing(false);
+        }
         updateStackPosition();
         requestChildrenUpdate();
+    }
+
+    private void setNotificationsDozing(boolean dozing) {
+        if (mNotificationsDozing == dozing) {
+            return;
+        }
+        mNotificationsDozing = dozing;
+        for (int i = 0; i < getChildCount(); i++) {
+            View child = getChildAt(i);
+            if (child instanceof ActivatableNotificationView activatableView) {
+                activatableView.setDozing(dozing);
+            }
+        }
+        for (int i = 0; i < getTransientViewCount(); i++) {
+            View child = getTransientView(i);
+            if (child instanceof ActivatableNotificationView activatableView) {
+                activatableView.setDozing(dozing);
+            }
+        }
     }
 
     public boolean isFullyAwake() {
@@ -6892,6 +6953,8 @@ public class NotificationStackScrollLayout
 
     @Override
     protected void dispatchDraw(@NonNull Canvas canvas) {
+        AxAmbientStateEx axAmbientStateEx = Dependency.get(AxAmbientStateEx.class);
+        axAmbientStateEx.setSkipDrawNotificationRowCount(0);
         if (mBlurEffect != null) {
             spewLog("Applying blur RenderEffect to NotificationStackScrollLayout");
             // reuse the cached RenderNode to blur
