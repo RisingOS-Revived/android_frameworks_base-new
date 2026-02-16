@@ -154,6 +154,7 @@ public class StackScrollAlgorithm {
         updateClipping(algorithmState, ambientState);
         updateSpeedBumpState(algorithmState, speedBumpIndex);
         updateShelfState(algorithmState, ambientState);
+        updateShelfIconContainerState(ambientState);
         updateAlphaState(algorithmState, ambientState);
         getNotificationChildrenStates(algorithmState);
     }
@@ -384,6 +385,27 @@ public class StackScrollAlgorithm {
         }
 
         shelf.updateState(algorithmState, ambientState);
+    }
+
+    private void updateShelfIconContainerState(AmbientState ambientState) {
+        NotificationShelf shelf = ambientState.getShelf();
+        if (shelf == null) {
+            return;
+        }
+
+        if (AxAmbientStateEx.getHideShelfForPanelAnimation()) {
+            shelf.setShelfIconsVisible(false);
+            return;
+        }
+
+        if (AxAmbientStateEx.getHideShelfForNotificationPanelExpandingNotComplete()) {
+            if (Float.compare(ambientState.getExpansionFraction(), 1.0f) != 0) {
+                shelf.setShelfIconsVisible(false);
+                return;
+            }
+        }
+
+        shelf.setShelfIconsVisible(true);
     }
 
     private void updateClipping(StackScrollAlgorithmState algorithmState,
