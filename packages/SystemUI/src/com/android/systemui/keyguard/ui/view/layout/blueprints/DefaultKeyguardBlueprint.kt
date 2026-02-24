@@ -36,6 +36,10 @@ import com.android.systemui.keyguard.ui.view.layout.sections.DefaultUdfpsAccessi
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardSectionsModule.Companion.KEYGUARD_AMBIENT_INDICATION_AREA_SECTION
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardSectionsModule.Companion.KEYGUARD_BATTERY_CHARGING_SECTION
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardSliceViewSection
+import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardWidgetViewSection
+import com.android.systemui.keyguard.ui.view.layout.sections.InfoWidgetsSection
+import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardClockStyleSection
+import com.android.systemui.keyguard.ui.view.layout.sections.AODStyleSection
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardWeatherViewSection
 import com.android.systemui.keyguard.ui.view.layout.sections.SmartspaceSection
 import java.util.Optional
@@ -72,6 +76,10 @@ constructor(
     smartspaceSection: SmartspaceSection,
     keyguardWeatherViewSection: KeyguardWeatherViewSection,
     keyguardSliceViewSection: KeyguardSliceViewSection,
+    keyguardWidgetViewSection: KeyguardWidgetViewSection,
+    infoWidgetsSection: InfoWidgetsSection,
+    keyguardClockStyleSection: KeyguardClockStyleSection,
+    aodStyleSection: AODStyleSection,
     udfpsAccessibilityOverlaySection: DefaultUdfpsAccessibilityOverlaySection,
 ) : KeyguardBlueprint {
     override val id: String = DEFAULT
@@ -94,6 +102,11 @@ constructor(
             clockSection,
             keyguardWeatherViewSection,
             keyguardSliceViewSection,
+            keyguardWidgetViewSection,
+            infoWidgetsSection,
+            keyguardClockStyleSection,
+	        aodStyleSection,
+            keyguardWeatherViewSection,
             defaultDeviceEntrySection,
             udfpsAccessibilityOverlaySection, // Add LAST: Intentionally has z-order above others
         )
