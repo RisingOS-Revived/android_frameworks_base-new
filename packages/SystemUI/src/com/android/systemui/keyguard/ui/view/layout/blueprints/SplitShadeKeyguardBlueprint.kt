@@ -31,6 +31,7 @@ import com.android.systemui.keyguard.ui.view.layout.sections.DefaultIndicationAr
 import com.android.systemui.keyguard.ui.view.layout.sections.DefaultSettingsPopupMenuSection
 import com.android.systemui.keyguard.ui.view.layout.sections.DefaultShortcutsSection
 import com.android.systemui.keyguard.ui.view.layout.sections.DefaultStatusBarSection
+import com.android.systemui.keyguard.ui.view.layout.sections.AxDynamicBarKeyguardChipSection
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardSectionsModule
 import com.android.systemui.keyguard.ui.view.layout.sections.InfoWidgetsSection
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardClockStyleSection
@@ -80,6 +81,7 @@ constructor(
     aodStyleSection: AODStyleSection,
     mediaSection: SplitShadeMediaSection,
     keyguardWeatherViewSection: KeyguardWeatherViewSection,
+    axDynamicBarKeyguardChipSection: AxDynamicBarKeyguardChipSection,
 ) : KeyguardBlueprint {
     override val id: String = ID
 
@@ -89,6 +91,7 @@ constructor(
             accessibilityActionsSection,
             defaultIndicationAreaSection,
             defaultIndicationAreaTopSection,
+            axDynamicBarKeyguardChipSection,
             defaultShortcutsSection,
             defaultAmbientIndicationAreaSection.getOrNull(),
             defaultSettingsPopupMenuSection,
