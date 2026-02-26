@@ -7738,6 +7738,12 @@ public final class Settings {
         public static final String WIRELESS_CHARGING_RIPPLE_SHAPE = "wireless_charging_ripple_shape";
 
         /**
+         * Gradient on Volume slider
+         * @hide
+         */
+        public static final String VOLUME_SLIDER_GRADIENT = "volume_slider_gradient";
+
+        /**
          * Keys we no longer back up under the current schema, but want to continue to
          * process when restoring historical backup datasets.
          *
