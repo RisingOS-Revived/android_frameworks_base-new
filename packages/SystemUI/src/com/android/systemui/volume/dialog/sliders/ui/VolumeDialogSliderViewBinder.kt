@@ -159,8 +159,8 @@ private fun VolumeDialogSlider(
         if (!rememberVolumeGradientEnabled()) {
             null
         } else if (rememberGradientColorMode() == 1) {
-            val (customStart, _) = rememberGradientCustomColors()
-            customStart
+            val gradient = rememberGradientCustomColors()
+            gradient.startColor
         } else {
             MaterialTheme.colorScheme.primary
         }
