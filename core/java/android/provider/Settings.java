@@ -7362,6 +7362,11 @@ public final class Settings {
         public static final String NOWPLAYING_TAP_TO_EXPAND = "nowplaying_tap_to_expand";
 
         /**
+         * @hide
+         */
+        public static final String NOTIFICATION_BG_ALTERNATE_COLOR = "notification_bg_alternate_color";
+
+        /**
          * Whether to show the battery bar
          * @hide
          */
