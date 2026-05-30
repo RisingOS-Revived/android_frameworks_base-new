@@ -26,6 +26,11 @@ import android.animation.ObjectAnimator;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.Resources;
+import android.database.ContentObserver;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.UserHandle;
+import android.provider.Settings;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.util.AttributeSet;
@@ -57,6 +62,7 @@ import com.android.systemui.statusbar.notification.row.ExpandableView;
 import com.android.systemui.statusbar.notification.shared.NotificationMinimalism;
 import com.android.systemui.statusbar.notification.shelf.NotificationShelfBackgroundView;
 import com.android.systemui.statusbar.notification.shelf.NotificationShelfIconContainer;
+import com.android.systemui.statusbar.notification.stack.AmbientState;
 import com.android.systemui.statusbar.notification.stack.AmbientState;
 import com.android.systemui.statusbar.notification.stack.AnimationProperties;
 import com.android.systemui.statusbar.notification.stack.ExpandableViewState;
@@ -113,6 +119,8 @@ public class NotificationShelf extends ActivatableNotificationView {
     private boolean mCanInteract;
     private NotificationStackScrollLayout mHostLayout;
     private NotificationRoundnessManager mRoundnessManager;
+    private ContentObserver mCenterAlignObserver;
+    private boolean mAlignToCenter = false;
 
     public NotificationShelf(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -140,6 +148,7 @@ public class NotificationShelf extends ActivatableNotificationView {
         mShelfIcons.setIsStaticLayout(false);
         requestRoundness(/* top = */ 1f, /* bottom = */ 1f, BASE_VALUE, /* animate = */ false);
         updateResources();
+        registerCenterAlignObserver();
     }
 
     public void bind(AmbientState ambientState, NotificationStackScrollLayout hostLayout,
@@ -176,6 +185,8 @@ public class NotificationShelf extends ActivatableNotificationView {
         if (!mShowNotificationShelf) {
             setVisibility(GONE);
         }
+        mAlignToCenter = isCenterAlignmentEnabled();
+        applyAlignToCenterToChildren();
         updateIfNeeded();
     }
 
@@ -183,6 +194,59 @@ public class NotificationShelf extends ActivatableNotificationView {
     protected void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         updateResources();
+    }
+
+    private void registerCenterAlignObserver() {
+        if (!NotificationMinimalism.isEnabled()) {
+            return;
+        }
+        mCenterAlignObserver = new ContentObserver(new Handler(Looper.getMainLooper())) {
+            @Override
+            public void onChange(boolean selfChange) {
+                final boolean enabled = isCenterAlignmentEnabled();
+                if (mAlignToCenter != enabled) {
+                    mAlignToCenter = enabled;
+                    applyAlignToCenterToChildren();
+                    updateAppearance();
+                }
+            }
+        };
+        mContext.getContentResolver().registerContentObserver(
+                Settings.System.getUriFor(Settings.System.NOTIFICATION_ICONS_CENTER_ALIGNED),
+                false,
+                mCenterAlignObserver,
+                UserHandle.USER_ALL);
+    }
+
+    public void destroy() {
+        if (mCenterAlignObserver != null) {
+            mContext.getContentResolver().unregisterContentObserver(mCenterAlignObserver);
+            mCenterAlignObserver = null;
+        }
+    }
+
+    private boolean isCenterAlignmentEnabled() {
+        if (!NotificationMinimalism.isEnabled()) {
+            return false;
+        }
+        return Settings.System.getIntForUser(
+                mContext.getContentResolver(),
+                Settings.System.NOTIFICATION_ICONS_CENTER_ALIGNED,
+                0,
+                UserHandle.USER_CURRENT) == 1;
+    }
+
+    private void applyAlignToCenterToChildren() {
+        if (mShelfIcons instanceof NotificationShelfIconContainer) {
+            ((NotificationShelfIconContainer) mShelfIcons).setAlignToCenter(mAlignToCenter);
+        }
+    }
+
+    public void setAlignToCenter(boolean alignToCenter) {
+        if (mAlignToCenter == alignToCenter) return;
+        mAlignToCenter = alignToCenter;
+        applyAlignToCenterToChildren();
+        updateIfNeeded();
     }
 
     @Override
@@ -350,12 +414,30 @@ public class NotificationShelf extends ActivatableNotificationView {
      */
     @VisibleForTesting
     public void setActualWidth(float actualWidth) {
-        setBackgroundWidth((int) actualWidth);
         if (mShelfIcons != null) {
             mShelfIcons.setAlignToEnd(isAlignedToEnd());
             mShelfIcons.setActualLayoutWidth((int) actualWidth);
         }
+        if (mAlignToCenter && NotificationMinimalism.isEnabled()) {
+            setCenteredBackground(actualWidth);
+        } else {
+            setBackgroundWidth((int) actualWidth);
+            if (mBackgroundNormal != null) {
+                mBackgroundNormal.setTranslationX(0f);
+            }
+        }
         mActualWidth = actualWidth;
+    }
+
+    private void setCenteredBackground(float actualWidth) {
+        final int pillWidth = (int) actualWidth;
+        setBackgroundWidth(pillWidth);
+
+        if (mBackgroundNormal != null) {
+            final float screenWidth = getWidth();
+            final float leftOffset = (screenWidth - pillWidth) / 2f;
+            mBackgroundNormal.setTranslationX(leftOffset);
+        }
     }
 
     @Override
@@ -366,6 +448,7 @@ public class NotificationShelf extends ActivatableNotificationView {
         }
         if (mBackgroundNormal != null) {
             mBackgroundNormal.setAlignToEnd(isAlignedToEnd());
+            mBackgroundNormal.setAlignToCenter(mAlignToCenter);
         }
     }
 
