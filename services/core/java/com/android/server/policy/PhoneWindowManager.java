@@ -2454,6 +2454,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             case AMBIENT_DISPLAY:
                 triggerAmbientDisplay();
                 break;
+            case SYSTEM_POPUP:
+                showSystemPopupFromGesture();
+                break;
             default:
                 break;
         }
@@ -7703,6 +7706,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
         Intent intent = new Intent("com.android.systemui.doze.pulse");
         intent.setPackage("com.android.systemui");
+        mContext.sendBroadcastAsUser(intent, new UserHandle(UserHandle.USER_CURRENT));
+    }
+
+    private void showSystemPopupFromGesture() {
+        Intent intent = new Intent("com.android.systemui.action.SHOW_SYSTEM_ICONS_POPUP");
+        intent.setPackage("com.android.systemui");
+        intent.putExtra("at_bottom", true);
         mContext.sendBroadcastAsUser(intent, new UserHandle(UserHandle.USER_CURRENT));
     }
 
