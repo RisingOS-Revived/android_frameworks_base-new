@@ -106,6 +106,7 @@ private constructor(
     private var extraStartDp = 0
     private var extraTopDp = 0
     private var extraEndDp = 0
+    private var isSystemIconsPopupEnabled = false
 
     // System icons popup controller
     private var systemIconsPopupController: SystemIconsPopupController? = null
@@ -221,6 +222,7 @@ private constructor(
         tunerService.addTunable(this, STATUSBAR_EXTRA_PADDING_START)
         tunerService.addTunable(this, STATUSBAR_EXTRA_PADDING_TOP)
         tunerService.addTunable(this, STATUSBAR_EXTRA_PADDING_END)
+        tunerService.addTunable(this, STATUSBAR_SYSTEM_ICONS_POPUP_ENABLED)
     }
 
     override fun onTuningChanged(key: String?, newValue: String?) {
@@ -231,6 +233,10 @@ private constructor(
                 extraTopDp = TunerService.parseInteger(newValue, 0)
             STATUSBAR_EXTRA_PADDING_END ->
                 extraEndDp = TunerService.parseInteger(newValue, 0)
+            STATUSBAR_SYSTEM_ICONS_POPUP_ENABLED -> {
+                isSystemIconsPopupEnabled = TunerService.parseIntegerSwitch(newValue, false)
+                updateSystemIconsPopupLongClickListener()
+            }
             else -> return
         }
 
@@ -246,7 +252,7 @@ private constructor(
             onShowPowerMenu = { globalActionsComponent.get().handleShowGlobalActionsMenu() }
         )
 
-        endSideContainer.setOnLongClickListener { toggleSystemIconsPopup() }
+        updateSystemIconsPopupLongClickListener()
 
         endSideContainer.setOnHoverListener(
             statusOverlayHoverListenerFactory.createDarkAwareListener(endSideContainer)
@@ -282,6 +288,16 @@ private constructor(
                 customHeightPx = iconContainerHeightPx,
             )
         )
+    }
+
+    private fun updateSystemIconsPopupLongClickListener() {
+        if (!::endSideContainer.isInitialized) return
+        if (isSystemIconsPopupEnabled) {
+            endSideContainer.setOnLongClickListener { toggleSystemIconsPopup() }
+        } else {
+            endSideContainer.setOnLongClickListener(null)
+            systemIconsPopupController?.let { if (it.isShowing) it.hidePopup() }
+        }
     }
 
     private fun statusBarTapToExpandShadeEnabled(): Boolean {
@@ -508,6 +524,8 @@ private constructor(
             "system:" + Settings.System.STATUSBAR_EXTRA_PADDING_TOP
         private const val STATUSBAR_EXTRA_PADDING_END =
             "system:" + Settings.System.STATUSBAR_EXTRA_PADDING_END
+        private const val STATUSBAR_SYSTEM_ICONS_POPUP_ENABLED =
+            "system:" + Settings.System.STATUSBAR_SYSTEM_ICONS_POPUP_ENABLED
     }
 
     class Factory
