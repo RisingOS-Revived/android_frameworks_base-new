@@ -286,4 +286,7 @@
     <string name="onthego_restart_summary">Briefly restart the preview when the camera changes</string>
     <string name="onthego_front_camera_title">Front camera</string>
     <string name="onthego_front_camera_summary">Use the front camera instead of the rear</string>
+
+    <!-- Toast shown when the memory clean quick tile is tapped -->
+    <string name="quick_settings_memory_cleaned_toast">Memory cleaned</string>
 </resources>
