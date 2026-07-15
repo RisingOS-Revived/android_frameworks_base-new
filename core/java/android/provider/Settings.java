@@ -7455,6 +7455,11 @@ public final class Settings {
         public static final String STATUS_BAR_LOGO_CUSTOM_IMAGE_URI = "status_bar_logo_custom_image_uri";
 
         /**
+         * @hide
+         */
+        public static final String STATUSBAR_SYSTEM_ICONS_POPUP_ENABLED = "statusbar_system_icons_popup_enabled";
+
+        /**
          * Whether to use the custom status bar header or not
          * @hide
          */
