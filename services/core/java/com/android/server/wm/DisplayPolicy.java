@@ -1237,8 +1237,10 @@ public class DisplayPolicy {
         if (!isSingletonPerDisplay(windowType)) {
             return false;
         }
-        mContext.enforcePermission(systemUiPermission, callingPid, callingUid,
-                "DisplayPolicy");
+        if (!mService.mAtmService.isCallerRecents(callingUid)) {
+            mContext.enforcePermission(systemUiPermission, callingPid, callingUid,
+                    "DisplayPolicy");
+        }
 
         switch (windowType) {
             case TYPE_STATUS_BAR:
