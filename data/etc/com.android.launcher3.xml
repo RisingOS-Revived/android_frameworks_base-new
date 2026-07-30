@@ -34,6 +34,9 @@
         <permission name="android.permission.PERSONAL_CONTEXT_RECEIVE_INSIGHTS"/>
         <permission name="android.permission.PERSONAL_CONTEXT_HOST_INSIGHT_SURFACE"/>
         <permission name="android.permission.PERSONAL_CONTEXT_READ_SETTINGS"/>
+        <permission name="android.permission.INTERNAL_SYSTEM_WINDOW"/>
+        <permission name="android.permission.MANAGE_ACTIVITY_TASKS"/>
+        <permission name="android.permission.READ_FRAME_BUFFER"/>
         <permission name="android.permission.FORCE_STOP_PACKAGES"/>
         <permission name="android.permission.REGISTER_STATS_PULL_ATOM"/>
         <permission name="android.permission.GET_ROLE_HOLDERS"/>
