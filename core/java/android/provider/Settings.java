@@ -7040,12 +7040,6 @@ public final class Settings {
         public static final String LOCKSCREEN_BATTERY_INFO = "lockscreen_battery_info";
 
         /**
-         * Haptic feedback on brightness slider
-         * @hide
-         */
-        public static final String QS_BRIGHTNESS_SLIDER_HAPTIC = "qs_brightness_slider_haptic";
-
-        /**
          * Whether to show seconds next to clock in status bar
          * 0 - hide (default)
          * 1 - show
