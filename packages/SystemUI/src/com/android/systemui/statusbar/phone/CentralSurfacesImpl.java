@@ -979,19 +979,25 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces,
 
     private void attachCustomOverlays() {
         ViewGroup overlay = getScrimOverlayContainer();
-        ViewGroup root = (ViewGroup) getNotificationShadeWindowView();
 
         detachFromParent(mMediaViewController.getMediaArtScrim());
         detachFromParent(mPulseViewController.getPulseView());
+        detachFromParent(mEdgeLightViewController.getEdgeLightView());
+        detachFromParent(mNowPlayingViewController.getNowPlayingView());
 
-        // Place Media Art in the true background (behind the lock screen scrim and clock)
-        View scrimBehind = root.findViewById(R.id.scrim_behind);
-        int scrimBehindIndex = Math.max(root.indexOfChild(scrimBehind), 0);
-        root.addView(mMediaViewController.getMediaArtScrim(), scrimBehindIndex,
+        overlay.addView(mMediaViewController.getMediaArtScrim(),
                 new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
         overlay.addView(mPulseViewController.getPulseView(),
+                new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        overlay.addView(mEdgeLightViewController.getEdgeLightView(),
+                new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        overlay.addView(mNowPlayingViewController.getNowPlayingView(),
                 new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
