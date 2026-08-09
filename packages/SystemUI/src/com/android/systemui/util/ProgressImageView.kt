@@ -284,6 +284,7 @@ class ProgressImageView @JvmOverloads constructor(
         val memoryInfo = ActivityManager.MemoryInfo()
         activityManager.getMemoryInfo(memoryInfo)
         val usedMemory = memoryInfo.totalMem - memoryInfo.availMem
+        if (memoryInfo.totalMem <= 0) return 0
         val usedMemoryPercentage = ((usedMemory * 100) / memoryInfo.totalMem).toInt()
         return usedMemoryPercentage.coerceIn(0, 100)
     }
@@ -291,6 +292,7 @@ class ProgressImageView @JvmOverloads constructor(
     private fun getVolumeLevel(): Int {
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
         val maxVolume = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 1
+        if (maxVolume <= 0) return 0
         val currentVolume = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 0
         return ((currentVolume * 100) / maxVolume).coerceIn(0, 100)
     }
