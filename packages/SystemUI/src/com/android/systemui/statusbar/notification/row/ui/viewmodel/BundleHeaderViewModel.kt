@@ -54,7 +54,7 @@ class BundleHeaderViewModel @AssistedInject constructor(private val interactor: 
     var backgroundDrawable by mutableStateOf<Drawable?>(null)
 
     var useBlurBackground by mutableStateOf(false)
-    
+
     var isOnKeyguard by mutableStateOf(false)
 
     val numberOfChildrenContentDescription: String
@@ -78,7 +78,7 @@ class BundleHeaderViewModel @AssistedInject constructor(private val interactor: 
     }
 
     fun setExpansionState(isExpanded: Boolean) = interactor.setExpansionState(isExpanded)
-    
+
     fun setIsOnKeyguard(isOnKeyguard: Boolean) {
         this.isOnKeyguard = isOnKeyguard
     }
