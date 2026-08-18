@@ -288,4 +288,7 @@
 
     <!-- Toast shown when the memory clean quick tile is tapped -->
     <string name="quick_settings_memory_cleaned_toast">Memory cleaned</string>
+
+    <!-- Label for UI element which writes a clipboard-only screenshot to storage [CHAR LIMIT=30] -->
+    <string name="screenshot_save_to_storage_label">Save to storage</string>
 </resources>
