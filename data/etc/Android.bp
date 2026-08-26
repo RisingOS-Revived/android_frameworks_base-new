@@ -173,6 +173,14 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "privapp_whitelist_com.google.android.apps.nexuslauncher",
+    system_ext_specific: true,
+    sub_dir: "permissions",
+    src: "com.google.android.apps.nexuslauncher.xml",
+    filename_from_src: true,
+}
+
+prebuilt_etc {
     name: "privapp_whitelist_com.android.provision",
     system_ext_specific: true,
     sub_dir: "permissions",
