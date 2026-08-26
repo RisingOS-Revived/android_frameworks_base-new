@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  ~ Copyright (C) 2019 The Android Open Source Project
+  ~ Copyright (C) 2025-2026 RisingOS (revived) Android Open Source Project
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -14,8 +14,15 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License
   -->
+<!--
+  Privileged-permission allowlist for the prebuilt GMS launcher
+  (com.google.android.apps.nexuslauncher), which ships the same
+  Quickstep/Launcher3 code as com.android.launcher3. Grant set mirrors
+  this build's com.android.launcher3.xml 1:1, plus GET_ROLE_HOLDERS
+  for the VirtualDeviceManagerService role-holder check.
+-->
 <permissions>
-    <privapp-permissions package="com.android.launcher3">
+    <privapp-permissions package="com.google.android.apps.nexuslauncher">
         <permission name="android.permission.ALLOW_SLIPPERY_TOUCHES"/>
         <permission name="android.permission.BIND_APPWIDGET"/>
         <permission name="android.permission.CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS"/>
@@ -34,6 +41,11 @@
         <permission name="android.permission.PERSONAL_CONTEXT_RECEIVE_INSIGHTS"/>
         <permission name="android.permission.PERSONAL_CONTEXT_HOST_INSIGHT_SURFACE"/>
         <permission name="android.permission.PERSONAL_CONTEXT_READ_SETTINGS"/>
+        <permission name="android.permission.INTERNAL_SYSTEM_WINDOW"/>
+        <permission name="android.permission.MANAGE_ACTIVITY_TASKS"/>
+        <permission name="android.permission.READ_FRAME_BUFFER"/>
+        <permission name="android.permission.FORCE_STOP_PACKAGES"/>
+        <permission name="android.permission.REGISTER_STATS_PULL_ATOM"/>
         <permission name="android.permission.GET_ROLE_HOLDERS"/>
     </privapp-permissions>
 </permissions>
