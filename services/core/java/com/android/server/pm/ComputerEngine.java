@@ -1164,11 +1164,20 @@ public class ComputerEngine implements Computer {
         return null;
     }
 
+    private static boolean shouldHideQuickSwitchLauncher(String packageName, int userId,
+            long flags) {
+        if ((flags & (PackageManager.MATCH_DISABLED_COMPONENTS
+                | PackageManager.MATCH_UNINSTALLED_PACKAGES)) != 0) {
+            return false;
+        }
+        return QuickSwitchService.shouldHide(userId, packageName);
+    }
+
     public final ApplicationInfo getApplicationInfo(String packageName,
             @PackageManager.ApplicationInfoFlagsBits long flags, int userId) {
         if (isAppDetached(packageName)) return null;
         if (shouldHideFromCaller(Binder.getCallingUid(), packageName)) return null;
-        if (QuickSwitchService.shouldHide(userId, packageName))
+        if (shouldHideQuickSwitchLauncher(packageName, userId, flags))
             return null;
         return getApplicationInfoInternal(packageName, flags, Binder.getCallingUid(), userId);
     }
@@ -1185,7 +1194,7 @@ public class ComputerEngine implements Computer {
         if (!mUserManager.exists(userId)) return null;
         if (isAppDetached(packageName)) return null;
         if (shouldHideFromCaller(filterCallingUid, packageName)) return null;
-        if (QuickSwitchService.shouldHide(userId, packageName))
+        if (shouldHideQuickSwitchLauncher(packageName, userId, flags))
             return null;
         flags = updateFlagsForApplication(flags, userId);
 
@@ -1892,7 +1901,7 @@ public class ComputerEngine implements Computer {
             @PackageManager.PackageInfoFlagsBits long flags, int userId) {
         if (isAppDetached(packageName)) return null;
         if (shouldHideFromCaller(Binder.getCallingUid(), packageName)) return null;
-        if (QuickSwitchService.shouldHide(userId, packageName))
+        if (shouldHideQuickSwitchLauncher(packageName, userId, flags))
             return null;
         return getPackageInfoInternal(packageName, PackageManager.VERSION_CODE_HIGHEST,
                 flags, Binder.getCallingUid(), userId);
@@ -2022,7 +2031,7 @@ public class ComputerEngine implements Computer {
                + " updatedFlags=" + updatedFlags + " userId=" + userId);
 
         return QuickSwitchService.recreatePackageList(callingUid, mContext,
-                userId, getInstalledPackagesBody(flags, userId, callingUid));
+                userId, getInstalledPackagesBody(updatedFlags, userId, callingUid));
     }
 
     private PackageInfoList getInstalledPackagesBody(long flags, int userId, int callingUid) {
