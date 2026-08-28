@@ -38,6 +38,8 @@ import android.util.AtomicFile;
 import android.util.Slog;
 import android.util.Xml;
 
+import org.rising.server.QuickSwitchService;
+
 import com.android.internal.R;
 import com.android.internal.util.CollectionUtils;
 import com.android.server.LocalServices;
@@ -288,7 +290,8 @@ public class RoleServicePlatformHelperImpl implements RoleServicePlatformHelper 
     }
     
     private String maybeOverrideDefaultHome(String packageName) {
-        return packageName;
+        String selected = QuickSwitchService.getSelectedLauncherPackage();
+        return selected != null ? selected : packageName;
     }
 
     private boolean isSettingsApplication(@NonNull String packageName, @UserIdInt int userId) {
