@@ -16,10 +16,6 @@
 
 package org.rising.server;
 
-import static android.os.Process.THREAD_PRIORITY_DEFAULT;
-
-import android.app.ActivityManager;
-import android.app.ActivityThread;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -30,25 +26,33 @@ import android.content.pm.IPackageManager;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageInfoList;
 import android.content.pm.PackageManager;
-import android.content.pm.ParceledListSlice;
 import android.content.pm.UserInfo;
+import android.content.res.Resources;
 import android.os.Handler;
 import android.os.IUserManager;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
+import android.util.Slog;
 
 import com.android.server.ServiceThread;
 import com.android.server.SystemService;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 
 public final class QuickSwitchService extends SystemService {
 
     private static final String TAG = "QuickSwitchService";
-    private static final int THREAD_PRIORITY_DEFAULT = android.os.Process.THREAD_PRIORITY_DEFAULT;
+    private static final String PROP_DEFAULT_LAUNCHER = "persist.sys.default_launcher";
+    private static final String LAUNCHER3_PACKAGE = "com.android.launcher3";
+
+    private static final String[] FALLBACK_LAUNCHER_PACKAGES = {
+            "com.android.launcher3",
+            "com.google.android.apps.nexuslauncher",
+            "app.lawnchair"
+    };
 
     private final Context mContext;
     private final IPackageManager mPM;
@@ -59,27 +63,57 @@ public final class QuickSwitchService extends SystemService {
     private ServiceThread mWorker;
     private Handler mHandler;
 
-    private static List<String> LAUNCHER_PACKAGES = null;
-    private static List<String> disabledLaunchersCache = null;
-    private static int lastDefaultLauncher = -1;
+    private static final Object sLock = new Object();
+    private static List<String> sLauncherPackages = Collections.emptyList();
+    private static List<String> sDisabledLaunchersCache = null;
+    private static int sLastDefaultLauncher = -1;
 
-    static {
-        if (LAUNCHER_PACKAGES == null) {
+    public QuickSwitchService(Context context) {
+        super(context);
+        mContext = context;
+        mResolver = context.getContentResolver();
+        mPM = IPackageManager.Stub.asInterface(ServiceManager.getService("package"));
+        mUM = IUserManager.Stub.asInterface(ServiceManager.getService(Context.USER_SERVICE));
+        mOpPackageName = context.getOpPackageName();
+        ensureLauncherPackages();
+    }
+
+    private static void ensureLauncherPackages() {
+        synchronized (sLock) {
+            if (sLauncherPackages != null && !sLauncherPackages.isEmpty()) {
+                return;
+            }
+            List<String> packages = new ArrayList<>();
             try {
-                Context context = ActivityThread.currentApplication() != null ?
-                        ActivityThread.currentApplication().getApplicationContext() : null;
-                if (context != null) {
-                    String[] launcherPackages = context.getResources().getStringArray(com.android.internal.R.array.config_launcherPackages);
-                    LAUNCHER_PACKAGES = new ArrayList<>();
-                    for (String packageName : launcherPackages) {
-                        LAUNCHER_PACKAGES.add(packageName);
+                String[] fromRes = Resources.getSystem().getStringArray(
+                        com.android.internal.R.array.config_launcherPackages);
+                if (fromRes != null) {
+                    for (String packageName : fromRes) {
+                        if (packageName != null && !packageName.isEmpty()) {
+                            packages.add(packageName);
+                        }
                     }
-                } else {
-                    LAUNCHER_PACKAGES = new ArrayList<>();
                 }
             } catch (Exception e) {
-                LAUNCHER_PACKAGES = new ArrayList<>();
+                Slog.w(TAG, "Failed to load config_launcherPackages", e);
             }
+            if (packages.isEmpty()) {
+                Collections.addAll(packages, FALLBACK_LAUNCHER_PACKAGES);
+            }
+            sLauncherPackages = packages;
+            sDisabledLaunchersCache = null;
+            Slog.i(TAG, "Launcher packages: " + sLauncherPackages);
+        }
+    }
+
+    public static String getSelectedLauncherPackage() {
+        ensureLauncherPackages();
+        int defaultLauncher = getDefaultLauncherIndex();
+        synchronized (sLock) {
+            if (defaultLauncher >= 0 && defaultLauncher < sLauncherPackages.size()) {
+                return sLauncherPackages.get(defaultLauncher);
+            }
+            return sLauncherPackages.isEmpty() ? LAUNCHER3_PACKAGE : sLauncherPackages.get(0);
         }
     }
 
@@ -103,46 +137,104 @@ public final class QuickSwitchService extends SystemService {
         return appList;
     }
 
-    private void updateStateForUser(int userId) {
-        int defaultLauncher = SystemProperties.getInt("persist.sys.default_launcher", 0);
-        try {
-            for (String packageName : LAUNCHER_PACKAGES) {
-                if (packageName.equals("com.android.launcher3") && defaultLauncher == 2) {
-                    mPM.setApplicationEnabledSetting(packageName,
-                            PackageManager.COMPONENT_ENABLED_STATE_DEFAULT,
-                            0, userId, mOpPackageName);
-                } else if (packageName.equals(LAUNCHER_PACKAGES.get(defaultLauncher))) {
-                    mPM.setApplicationEnabledSetting(packageName,
-                            PackageManager.COMPONENT_ENABLED_STATE_DEFAULT,
-                            0, userId, mOpPackageName);
-                } else {
-                    mPM.setApplicationEnabledSetting(packageName,
-                            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                            0, userId, mOpPackageName);
+    public static List<String> getDisabledDefaultLaunchers() {
+        ensureLauncherPackages();
+        int defaultLauncher = getDefaultLauncherIndex();
+        synchronized (sLock) {
+            if (defaultLauncher != sLastDefaultLauncher || sDisabledLaunchersCache == null) {
+                sLastDefaultLauncher = defaultLauncher;
+                List<String> disabledDefaultLaunchers = new ArrayList<>();
+                for (int i = 0; i < sLauncherPackages.size(); i++) {
+                    if (i != defaultLauncher && !(i == 0 && defaultLauncher == 2)) {
+                        disabledDefaultLaunchers.add(sLauncherPackages.get(i));
+                    }
                 }
+                sDisabledLaunchersCache = disabledDefaultLaunchers;
             }
-        } catch (IllegalArgumentException ignored) {}
-        catch (RemoteException e) {}
+            return sDisabledLaunchersCache;
+        }
     }
 
-    public static List<String> getDisabledDefaultLaunchers() {
-        int defaultLauncher = SystemProperties.getInt("persist.sys.default_launcher", 0);
-        if (defaultLauncher != lastDefaultLauncher || disabledLaunchersCache == null) {
-            lastDefaultLauncher = defaultLauncher;
-            List<String> disabledDefaultLaunchers = new ArrayList<>();
-            for (int i = 0; i < LAUNCHER_PACKAGES.size(); i++) {
-                if (i != defaultLauncher && !(i == 0 && defaultLauncher == 2)) {
-                    disabledDefaultLaunchers.add(LAUNCHER_PACKAGES.get(i));
+    private static int getDefaultLauncherIndex() {
+        ensureLauncherPackages();
+        int defaultLauncher = SystemProperties.getInt(PROP_DEFAULT_LAUNCHER, 0);
+        synchronized (sLock) {
+            if (defaultLauncher < 0 || defaultLauncher >= sLauncherPackages.size()) {
+                return 0;
+            }
+            return defaultLauncher;
+        }
+    }
+
+    private boolean shouldEnablePackage(String packageName, int defaultLauncher) {
+        synchronized (sLock) {
+            String selected = sLauncherPackages.get(defaultLauncher);
+            if (packageName.equals(selected)) {
+                return true;
+            }
+            return LAUNCHER3_PACKAGE.equals(packageName) && defaultLauncher == 2;
+        }
+    }
+
+    private void updateStateForUser(int userId) {
+        ensureLauncherPackages();
+        int defaultLauncher = getDefaultLauncherIndex();
+        String selected;
+        List<String> packages;
+        synchronized (sLock) {
+            selected = sLauncherPackages.get(defaultLauncher);
+            packages = new ArrayList<>(sLauncherPackages);
+        }
+        Slog.i(TAG, "Applying launcher " + selected + " (index=" + defaultLauncher
+                + ") for user " + userId);
+
+        boolean selectedEnabled = false;
+        for (String packageName : packages) {
+            if (!shouldEnablePackage(packageName, defaultLauncher)) {
+                continue;
+            }
+            if (setLauncherEnabled(packageName, true, userId)) {
+                if (packageName.equals(selected)) {
+                    selectedEnabled = true;
                 }
             }
-            disabledLaunchersCache = disabledDefaultLaunchers;
         }
-        return disabledLaunchersCache;
+
+        if (!selectedEnabled) {
+            Slog.w(TAG, "Selected launcher " + selected
+                    + " is not installed; leaving other launchers enabled");
+            return;
+        }
+
+        for (String packageName : packages) {
+            if (shouldEnablePackage(packageName, defaultLauncher)) {
+                continue;
+            }
+            setLauncherEnabled(packageName, false, userId);
+        }
+    }
+
+    private boolean setLauncherEnabled(String packageName, boolean enable, int userId) {
+        try {
+            mPM.setApplicationEnabledSetting(packageName,
+                    enable ? PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
+                            : PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    0, userId, mOpPackageName);
+            Slog.i(TAG, (enable ? "Enabled " : "Disabled ") + packageName + " for user " + userId);
+            return true;
+        } catch (IllegalArgumentException e) {
+            Slog.w(TAG, "Launcher not installed: " + packageName);
+            return false;
+        } catch (RemoteException e) {
+            Slog.e(TAG, "Failed to update " + packageName, e);
+            return false;
+        }
     }
 
     private void initForUser(int userId) {
-        if (userId < 0)
+        if (userId < 0) {
             return;
+        }
         updateStateForUser(userId);
     }
 
@@ -164,27 +256,10 @@ public final class QuickSwitchService extends SystemService {
 
     @Override
     public void onStart() {
-        mWorker = new ServiceThread(TAG, THREAD_PRIORITY_DEFAULT, false);
+        mWorker = new ServiceThread(TAG, android.os.Process.THREAD_PRIORITY_DEFAULT, false);
         mWorker.start();
         mHandler = new Handler(mWorker.getLooper());
         init();
-    }
-
-    @Override
-    public void onBootPhase(int phase) {
-        super.onBootPhase(phase);
-        if (phase == SystemService.PHASE_BOOT_COMPLETED) {
-            IntentFilter filter = new IntentFilter(Intent.ACTION_USER_PRESENT);
-        }
-    }
-
-    public QuickSwitchService(Context context) {
-        super(context);
-        mContext = context;
-        mResolver = context.getContentResolver();
-        mPM = IPackageManager.Stub.asInterface(ServiceManager.getService("package"));
-        mUM = IUserManager.Stub.asInterface(ServiceManager.getService(Context.USER_SERVICE));
-        mOpPackageName = context.getOpPackageName();
     }
 
     private final class UserReceiver extends BroadcastReceiver {

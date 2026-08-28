@@ -27,6 +27,8 @@ import android.util.Slog;
 import com.android.internal.util.CollectionUtils;
 import com.android.server.FgThread;
 
+import org.rising.server.QuickSwitchService;
+
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -122,7 +124,8 @@ public class DefaultAppProvider {
     }
     
     private String maybeOverrideDefaultHome(String packageName) {
-        return packageName;
+        String selected = QuickSwitchService.getSelectedLauncherPackage();
+        return selected != null ? selected : packageName;
     }
 
     /**
