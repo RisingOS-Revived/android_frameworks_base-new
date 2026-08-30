@@ -62,7 +62,6 @@ import com.android.systemui.statusbar.notification.row.wrapper.BundleHeaderViewW
 import com.android.systemui.statusbar.notification.row.wrapper.NotificationHeaderViewWrapper;
 import com.android.systemui.statusbar.notification.row.wrapper.NotificationViewWrapper;
 
-import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -132,7 +131,6 @@ public class NotificationChildrenContainer extends ViewGroup
     @Nullable private BundleHeaderViewModel mBundleHeaderViewModel;
     private BundleHeaderViewWrapper mBundleHeaderWrapper;
     private boolean mBundleHeaderBlurEnabled;
-    @Nullable private View mAxBlurAlphaSource;
 
     private NotificationHeaderView mGroupHeader;
     private NotificationHeaderViewWrapper mGroupHeaderWrapper;
@@ -369,11 +367,7 @@ public class NotificationChildrenContainer extends ViewGroup
         int newIndex = childIndex < 0 ? mAttachedChildren.size() : childIndex;
         mAttachedChildren.add(newIndex, row);
         addView(row);
-        if (mAxBlurAlphaSource != null) {
-            row.setAxBlurAlphaSource(mAxBlurAlphaSource);
-        }
         row.setUserSwipingToExpandRow(mIsUserSwipingToExpandRow);
-        row.setAxBlurTransitionVisible(mContainingNotification.isAxBlurTransitionVisible());
         row.setDozing(mContainingNotification.isNotificationDozing());
 
         View divider = inflateDivider();
@@ -468,15 +462,11 @@ public class NotificationChildrenContainer extends ViewGroup
         mBundleHeaderView = view;
         mBundleHeaderBlurView = new BundleHeaderBlurView(getContext());
         mBundleHeaderBlurView.setOnBlurStateChangedListener(this::updateBundleHeaderBlur);
-        if (mAxBlurAlphaSource != null) {
-            mBundleHeaderBlurView.setAxBlurAlphaSource(mAxBlurAlphaSource);
-        }
         addView(mBundleHeaderBlurView);
         addView(mBundleHeaderView);
         mBundleHeaderWrapper = (BundleHeaderViewWrapper) NotificationViewWrapper.wrap(getContext(),
                 mBundleHeaderView, mContainingNotification);
-        mBundleHeaderWrapper.setOnRoundnessChangedListener(this::updateBundleHeaderBlurRadii);
-        applyRoundnessAndInvalidate();
+        mBundleHeaderWrapper.setOnRoundnessChangedListener(this::invalidate);
         updateBundleHeaderBlur();
         invalidate();
     }
@@ -501,52 +491,19 @@ public class NotificationChildrenContainer extends ViewGroup
     }
 
     private void updateBundleHeaderBlur() {
-        if (mContainingNotification == null
-                || mBundleHeaderBlurView == null
-                || mBundleHeaderViewModel == null
-                || mBundleHeaderView == null) {
+        if (mContainingNotification == null || mBundleHeaderBlurView == null 
+            || mBundleHeaderViewModel == null || mBundleHeaderView == null) {
             return;
         }
-
+        
         boolean isOnKeyguard = mContainingNotification.isOnKeyguard();
         mBundleHeaderViewModel.setIsOnKeyguard(isOnKeyguard);
 
         boolean shouldBlur = mBundleHeaderBlurEnabled;
         mBundleHeaderBlurView.setAxBlurEnabled(shouldBlur);
 
-        boolean canBlur = shouldBlur && mBundleHeaderBlurView.isBlurActive();
+        boolean canBlur = shouldBlur && mBundleHeaderBlurView.isCrossWindowBlurActive();
         mBundleHeaderViewModel.setUseBlurBackground(canBlur);
-    }
-
-    private void updateBundleHeaderBlurRadii() {
-        if (mBundleHeaderBlurView != null && mBundleHeaderWrapper != null) {
-            mBundleHeaderBlurView.setCornerRadii(mBundleHeaderWrapper.getUpdatedRadii());
-        }
-        invalidate();
-    }
-
-    public void setAxBlurAlphaSource(View source) {
-        mAxBlurAlphaSource = source;
-        if (mBundleHeaderBlurView != null) {
-            mBundleHeaderBlurView.setAxBlurAlphaSource(source);
-        }
-    }
-
-    public void setBlurFadeRange(float fadeTop, float fadeBottom) {
-        if (mBundleHeaderBlurView != null) {
-            mBundleHeaderBlurView.setBlurFadeRange(fadeTop, fadeBottom);
-        }
-        for (ExpandableNotificationRow child : getAttachedChildren()) {
-            child.setBlurFadeRange(fadeTop, fadeBottom);
-        }
-    }
-
-    public void dump(PrintWriter pw, String[] args) {
-        pw.println("mBundleHeaderBlurEnabled: " + mBundleHeaderBlurEnabled);
-        pw.println("mAxBlurAlphaSource: " + mAxBlurAlphaSource);
-        if (mBundleHeaderBlurView != null) {
-            mBundleHeaderBlurView.dump(pw, args);
-        }
     }
 
     private void initBundleDimens() {
@@ -1799,7 +1756,6 @@ public class NotificationChildrenContainer extends ViewGroup
                     /* sourceType = */ FROM_PARENT,
                     /* animate = */ false
             );
-            updateBundleHeaderBlurRadii();
         }
         if (mMinimizedGroupHeaderWrapper != null) {
             mMinimizedGroupHeaderWrapper.requestTopRoundness(

@@ -20,27 +20,25 @@ import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
-import android.graphics.drawable.GradientDrawable;
 import android.view.View;
 
-import com.android.axion.blur.BlurEngine;
-import com.android.systemui.common.shared.colors.SurfaceEffectColors;
-
-import java.io.PrintWriter;
+import com.android.axion.blur.AxBlurBackgroundRenderer;
+import com.android.axion.blur.AxBlurColors;
+import com.android.axion.blur.model.AxBackdropBlurSettingsSpec;
 
 public class BundleHeaderBlurView extends View {
-    private final BlurEngine mBlur;
-    private final GradientDrawable mFallback = new GradientDrawable();
-    private final float[] mCornerRadii = new float[8];
+    private final AxBlurBackgroundRenderer mBlurRenderer;
+    private final Object mBlurKey = new Object();
     private boolean mBlurEnabled;
+    private int mOverlayColor;
     private boolean mLastBlurActive;
-    private boolean mHasCornerRadii;
     private Runnable mOnBlurStateChanged;
 
     public BundleHeaderBlurView(Context context) {
         super(context);
-        mBlur = new BlurEngine(this);
-        mFallback.setColor(SurfaceEffectColors.surfaceEffect1(context));
+        mBlurRenderer = new AxBlurBackgroundRenderer(this, AxBackdropBlurSettingsSpec.system(),
+                false);
+        updateColors();
     }
 
     public void setOnBlurStateChangedListener(Runnable listener) {
@@ -49,16 +47,14 @@ public class BundleHeaderBlurView extends View {
 
     @Override
     public void draw(Canvas canvas) {
-        boolean active = drawBlurBackground(canvas);
-        if (!active && mBlurEnabled) {
-            drawFallbackBackground(canvas);
-        }
+        boolean active = mBlurEnabled && mBlurRenderer.isCrossWindowBlurActive();
         if (active != mLastBlurActive) {
             mLastBlurActive = active;
             if (mOnBlurStateChanged != null) {
                 post(mOnBlurStateChanged);
             }
         }
+        drawBlurBackground(canvas);
         super.draw(canvas);
     }
 
@@ -66,21 +62,20 @@ public class BundleHeaderBlurView extends View {
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         updateColors();
+        mBlurRenderer.onAttachedToWindow();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        mBlurRenderer.onDetachedFromWindow();
+        mOnBlurStateChanged = null;
+        super.onDetachedFromWindow();
     }
 
     @Override
     public void onVisibilityAggregated(boolean isVisible) {
         super.onVisibilityAggregated(isVisible);
-        mBlur.onVisibilityAggregated(isVisible);
-    }
-
-    @Override
-    protected void onDetachedFromWindow() {
-        if (mOnBlurStateChanged != null) {
-            removeCallbacks(mOnBlurStateChanged);
-        }
-        mLastBlurActive = false;
-        super.onDetachedFromWindow();
+        mBlurRenderer.onVisibilityAggregated(isVisible);
     }
 
     @Override
@@ -91,11 +86,11 @@ public class BundleHeaderBlurView extends View {
 
     @Override
     protected boolean verifyDrawable(Drawable who) {
-        return mBlur.verifyDrawable(who) || super.verifyDrawable(who);
+        return mBlurRenderer.verifyDrawable(who) || super.verifyDrawable(who);
     }
 
-    public boolean isBlurActive() {
-        return mBlur.isBlurActive();
+    public boolean isCrossWindowBlurActive() {
+        return mBlurRenderer.isCrossWindowBlurActive();
     }
 
     public void setAxBlurEnabled(boolean enabled) {
@@ -103,68 +98,33 @@ public class BundleHeaderBlurView extends View {
             return;
         }
         mBlurEnabled = enabled;
-        mBlur.setEnabled(enabled);
-        invalidate();
-    }
-
-    public void setAxBlurAlphaSource(View source) {
-        mBlur.setCrossWindowAlphaSource(source);
-        invalidate();
-    }
-
-    public void setBlurFadeRange(float fadeTop, float fadeBottom) {
-        mBlur.setFadeRange(fadeTop, fadeBottom);
-        invalidate();
-    }
-
-    public void dump(PrintWriter pw, String[] args) {
-        pw.println("mBlurEnabled: " + mBlurEnabled);
-        pw.println("mLastBlurActive: " + mLastBlurActive);
-        pw.println("mHasCornerRadii: " + mHasCornerRadii);
-        mBlur.dump(pw);
-    }
-
-    public void setCornerRadii(float[] radii) {
-        if (radii == null || radii.length < mCornerRadii.length) {
-            return;
+        mBlurRenderer.setEnabled(enabled);
+        if (!enabled) {
+            mBlurRenderer.clear();
         }
-        System.arraycopy(radii, 0, mCornerRadii, 0, mCornerRadii.length);
-        mHasCornerRadii = true;
         invalidate();
     }
 
     private void updateColors() {
-        int color = SurfaceEffectColors.surfaceEffect1(getContext());
-        mBlur.setOverlayColor(color);
-        mFallback.setColor(color);
+        mOverlayColor = AxBlurColors.surfaceBrightTint(getContext());
         invalidate();
     }
 
-    private void drawFallbackBackground(Canvas canvas) {
-        mFallback.setBounds(0, 0, getWidth(), getHeight());
-        if (mHasCornerRadii) {
-            mFallback.setCornerRadii(mCornerRadii);
-        } else {
-            mFallback.setCornerRadius(Math.min(getWidth(), getHeight()) * 0.5f);
-        }
-        mFallback.draw(canvas);
-    }
-
-    private boolean drawBlurBackground(Canvas canvas) {
-        if (!mBlurEnabled || getWidth() <= 0 || getHeight() <= 0) {
-            return false;
-        }
-        if (mHasCornerRadii) {
-            return mBlur.draw(
-                    canvas,
-                    0,
-                    0,
-                    getWidth(),
-                    getHeight(),
-                    mCornerRadii,
-                    255);
+    private void drawBlurBackground(Canvas canvas) {
+        if (!mBlurEnabled || !mBlurRenderer.isCrossWindowBlurActive()
+                || getWidth() <= 0 || getHeight() <= 0) {
+            return;
         }
         float cornerRadius = Math.min(getWidth(), getHeight()) * 0.5f;
-        return mBlur.draw(canvas, 0, 0, getWidth(), getHeight(), cornerRadius, 255);
+        mBlurRenderer.draw(
+                canvas,
+                mBlurKey,
+                0,
+                0,
+                getWidth(),
+                getHeight(),
+                cornerRadius,
+                mOverlayColor,
+                255);
     }
 }

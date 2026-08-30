@@ -27,6 +27,7 @@ import android.database.ContentObserver;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.hardware.camera2.CameraManager;
 import android.media.AudioManager;
@@ -88,8 +89,8 @@ import java.util.Map;
 
 import com.android.internal.util.android.OmniJawsClient;
 
+import com.android.axion.blur.AxBlurBackgroundRenderer;
 import com.android.axion.blur.AxBlurColors;
-import com.android.axion.blur.BlurEngine;
 
 public class LockScreenWidgetsController implements OmniJawsClient.OmniJawsObserver, MediaSessionManagerHelper.MediaMetadataListener {
 
@@ -757,37 +758,63 @@ public class LockScreenWidgetsController implements OmniJawsClient.OmniJawsObser
     }
 
     private static final class BlurBackgroundDrawable extends Drawable {
-        private final BlurEngine mBlur;
+        private final AxBlurBackgroundRenderer mBlur;
+        private final int mOverlayColor;
+        private final GradientDrawable mBgDrawable = new GradientDrawable();
         private final View mTarget;
         private final Context mContext;
-        private float mCornerRadiusPx;
+        private final View.OnAttachStateChangeListener mAttachListener =
+                new View.OnAttachStateChangeListener() {
+                    @Override
+                    public void onViewAttachedToWindow(@NonNull View v) {
+                        mBlur.onAttachedToWindow();
+                    }
+                    @Override
+                    public void onViewDetachedFromWindow(@NonNull View v) {
+                        mBlur.onDetachedFromWindow();
+                    }
+                };
 
         BlurBackgroundDrawable(Context context, View target, boolean squareCorners) {
             mContext = context;
             mTarget = target;
-            mBlur = new BlurEngine(target);
-            mBlur.setOverlayColor(AxBlurColors.surfaceLightTint(context));
-            mBlur.setEnabled(true);
+            mBlur = new AxBlurBackgroundRenderer(target);
+            mOverlayColor = AxBlurColors.surfaceLightTint(context);
+            mBgDrawable.setColor(0x00000000);
             setSquareCorners(squareCorners);
+            target.addOnAttachStateChangeListener(mAttachListener);
+            if (target.isAttachedToWindow()) {
+                mBlur.onAttachedToWindow();
+            }
         }
 
         void setSquareCorners(boolean square) {
-            mCornerRadiusPx = square
+            float radius = square
                     ? mContext.getResources().getDimension(R.dimen.lockscreen_widget_blur_square_radius)
                     : mContext.getResources().getDimension(R.dimen.lockscreen_widget_blur_circle_radius);
+            mBgDrawable.setCornerRadius(radius);
             invalidateSelf();
         }
 
         void release() {
+            mTarget.removeOnAttachStateChangeListener(mAttachListener);
+            if (mTarget.isAttachedToWindow()) {
+                mBlur.onDetachedFromWindow();
+            }
         }
 
         @Override
         public void draw(@NonNull Canvas canvas) {
             final android.graphics.Rect bounds = getBounds();
             if (bounds.width() <= 0 || bounds.height() <= 0) return;
+            mBgDrawable.setBounds(0, 0, bounds.width(), bounds.height());
             canvas.save();
             canvas.translate(bounds.left, bounds.top);
-            mBlur.draw(canvas, 0, 0, bounds.width(), bounds.height(), mCornerRadiusPx, 255);
+            if (!mBlur.drawBackgroundWithOverlayColor(canvas, mBgDrawable, mOverlayColor)) {
+                mBgDrawable.setColor(mOverlayColor & 0x00FFFFFF | (0xCC << 24));
+                mBgDrawable.draw(canvas);
+                mBgDrawable.setColor(0x00000000);
+            }
             canvas.restore();
         }
 
