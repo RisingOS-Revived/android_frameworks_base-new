@@ -557,8 +557,6 @@ public class NotificationStackScrollLayout
 
     /** Radius of the blur effect applied to the content of the NSSL. */
     private float mBlurRadius = 0f;
-    private float mBlurTopFadeoutEnd = 0f;
-    private float mBlurBottomFadeoutStart = Float.MAX_VALUE;
     @Nullable private RenderEffect mBlurEffect = null;
 
     /**
@@ -632,7 +630,6 @@ public class NotificationStackScrollLayout
      */
     private HeightSuppressionState mSuppressHeightState = HeightSuppressionState.None;
     private boolean mIsOnLockscreen;
-    private boolean mKeepAxBlurDuringFade;
 
     /** Pass splitShadeStateController to view and update split shade */
     public void passSplitShadeStateController(SplitShadeStateController splitShadeStateController) {
@@ -1756,12 +1753,7 @@ public class NotificationStackScrollLayout
 
     @Override
     public void setAlpha(float alpha) {
-        float previousAlpha = getAlpha();
         super.setAlpha(alpha);
-        if (mKeepAxBlurDuringFade
-                && (alpha <= 0f || (previousAlpha < 1f && alpha >= 1f))) {
-            setKeepAxBlurDuringFade(false);
-        }
         if (Trace.isEnabled()) {
             Trace.setCounter(
                     trackGroup(/* groupName= */ "shade", /* trackName= */ "NSSLResultingAlpha"),
@@ -1771,14 +1763,6 @@ public class NotificationStackScrollLayout
 
     private boolean isCurrentlyAnimating() {
         return mStateAnimator.isRunning();
-    }
-
-    @Override
-    public void onVisibilityAggregated(boolean isVisible) {
-        super.onVisibilityAggregated(isVisible);
-        if (!isVisible) {
-            setKeepAxBlurDuringFade(false);
-        }
     }
 
     private void clampScrollPosition() {
@@ -3540,8 +3524,6 @@ public class NotificationStackScrollLayout
         }
         if (child instanceof ActivatableNotificationView activatableView) {
             activatableView.setDozing(mNotificationsDozing);
-            activatableView.setAxBlurTransitionVisible(mKeepAxBlurDuringFade);
-            activatableView.setAxBlurAlphaSource(this);
         }
         generateAddAnimation(child, false /* fromMoreCard */);
         updateAnimationState(child);
@@ -5956,11 +5938,6 @@ public class NotificationStackScrollLayout
     public void setOnLockscreen(boolean isOnLockscreen) {
         if (SceneContainerFlag.isUnexpectedlyInLegacyMode()) return;
         if (mIsOnLockscreen != isOnLockscreen) {
-            if (mIsOnLockscreen && !isOnLockscreen && getAlpha() > 0f) {
-                setKeepAxBlurDuringFade(true);
-            } else if (isOnLockscreen) {
-                setKeepAxBlurDuringFade(false);
-            }
             mIsOnLockscreen = isOnLockscreen;
             for (int i = 0; i < getChildCount(); i++) {
                 View child = getChildAt(i);
@@ -5969,19 +5946,6 @@ public class NotificationStackScrollLayout
                 }
             }
             mShelf.setOnKeyguard(isOnLockscreen);
-        }
-    }
-
-    private void setKeepAxBlurDuringFade(boolean keep) {
-        if (mKeepAxBlurDuringFade == keep) {
-            return;
-        }
-        mKeepAxBlurDuringFade = keep;
-        for (int i = 0; i < getChildCount(); i++) {
-            View child = getChildAt(i);
-            if (child instanceof ActivatableNotificationView activatableView) {
-                activatableView.setAxBlurTransitionVisible(keep);
-            }
         }
     }
 
@@ -6795,43 +6759,6 @@ public class NotificationStackScrollLayout
             mBlurRadius = blurRadius;
             updateBlurEffect();
             invalidate();
-        }
-    }
-
-    public void setBlurFadeRange(float topFadeEnd, float bottomFadeStart) {
-        if (mBlurTopFadeoutEnd != topFadeEnd || mBlurBottomFadeoutStart != bottomFadeStart) {
-            mBlurTopFadeoutEnd = topFadeEnd;
-            mBlurBottomFadeoutStart = bottomFadeStart;
-            updateBlurFadeForChildren();
-        }
-    }
-
-    private void updateBlurFadeForChildren() {
-        for (int i = 0; i < getChildCount(); i++) {
-            View child = getChildAt(i);
-            if (child instanceof ExpandableNotificationRow row) {
-                float childTop = child.getTop();
-                float childBottom = child.getBottom();
-                float childHeight = childBottom - childTop;
-                if (childHeight <= 0) continue;
-
-                float fadeTop = 0f;
-                float fadeBottom = 1f;
-
-                if (mBlurTopFadeoutEnd > childTop && mBlurTopFadeoutEnd < childBottom) {
-                    fadeTop = (mBlurTopFadeoutEnd - childTop) / childHeight;
-                } else if (mBlurTopFadeoutEnd >= childBottom) {
-                    fadeTop = 1f;
-                }
-
-                if (mBlurBottomFadeoutStart > childTop && mBlurBottomFadeoutStart < childBottom) {
-                    fadeBottom = (mBlurBottomFadeoutStart - childTop) / childHeight;
-                } else if (mBlurBottomFadeoutStart <= childTop) {
-                    fadeBottom = 0f;
-                }
-
-                row.setBlurFadeRange(fadeTop, fadeBottom);
-            }
         }
     }
 

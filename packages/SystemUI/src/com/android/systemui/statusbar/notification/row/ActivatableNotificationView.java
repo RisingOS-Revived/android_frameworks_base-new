@@ -140,7 +140,6 @@ public abstract class ActivatableNotificationView extends ExpandableOutlineView 
     protected boolean mIsLockscreenBlurSupported;
     protected boolean mUseTransparent;
     protected boolean mIsDozing;
-    private boolean mAxBlurTransitionVisible;
 
     public ActivatableNotificationView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -374,30 +373,6 @@ public abstract class ActivatableNotificationView extends ExpandableOutlineView 
         }
     }
 
-    public void setAxBlurAlphaSource(View source) {
-        if (mBackgroundNormal != null) {
-            mBackgroundNormal.setAxBlurAlphaSource(source);
-        }
-    }
-
-    public void setBlurFadeRange(float fadeTop, float fadeBottom) {
-        if (mBackgroundNormal != null) {
-            mBackgroundNormal.setBlurFadeRange(fadeTop, fadeBottom);
-        }
-    }
-
-    public void setAxBlurTransitionVisible(boolean visible) {
-        if (mAxBlurTransitionVisible == visible) {
-            return;
-        }
-        mAxBlurTransitionVisible = visible;
-        updateAxBlurEnabled();
-    }
-
-    public boolean isAxBlurTransitionVisible() {
-        return mAxBlurTransitionVisible;
-    }
-
     protected boolean shouldUseAxBlurBackground() {
         return isAxBlurKeyguardVisible()
                 && mBackgroundNormal.getVisibility() == VISIBLE
@@ -406,7 +381,7 @@ public abstract class ActivatableNotificationView extends ExpandableOutlineView 
     }
 
     protected boolean isAxBlurKeyguardVisible() {
-        return mBackgroundNormal != null && (mOnKeyguard || mAxBlurTransitionVisible);
+        return mBackgroundNormal != null && mOnKeyguard;
     }
 
     protected boolean hasAxBlurBlockingTint() {
@@ -1023,18 +998,18 @@ public abstract class ActivatableNotificationView extends ExpandableOutlineView 
     public void dump(PrintWriter pwOriginal, String[] args) {
         IndentingPrintWriter pw = DumpUtilsKt.asIndenting(pwOriginal);
         super.dump(pw, args);
-        DumpUtilsKt.withIncreasedIndent(pw, () -> dumpBackgroundView(pw, args));
+        if (DUMP_VERBOSE) {
+            DumpUtilsKt.withIncreasedIndent(pw, () -> {
+                dumpBackgroundView(pw, args);
+            });
+        }
     }
 
     protected void dumpBackgroundView(IndentingPrintWriter pw, String[] args) {
         pw.println("Background View: " + mBackgroundNormal);
-        if (mBackgroundNormal != null) {
+        if (DUMP_VERBOSE && mBackgroundNormal != null) {
             DumpUtilsKt.withIncreasedIndent(pw, () -> {
-                if (DUMP_VERBOSE) {
-                    mBackgroundNormal.dump(pw, args);
-                } else {
-                    mBackgroundNormal.dumpBlur(pw);
-                }
+                mBackgroundNormal.dump(pw, args);
             });
         }
     }
