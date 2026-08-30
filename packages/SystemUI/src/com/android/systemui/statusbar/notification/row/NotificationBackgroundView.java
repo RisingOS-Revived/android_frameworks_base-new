@@ -39,7 +39,9 @@ import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 import androidx.annotation.VisibleForTesting;
 
-import com.android.axion.blur.BlurEngine;
+import com.android.axion.blur.AxBlurBackgroundRenderer;
+import com.android.axion.blur.AxBlurColors;
+import com.android.axion.blur.model.AxBackdropBlurSettingsSpec;
 import com.android.internal.graphics.drawable.BackgroundBlurDrawable;
 import com.android.internal.util.ContrastColorUtil;
 import com.android.systemui.Dumpable;
@@ -58,7 +60,8 @@ import java.util.Arrays;
 public class NotificationBackgroundView extends View implements Dumpable,
         ExpandableNotificationRow.DismissButtonTargetVisibilityListener {
 
-    private final BlurEngine mAxBlur;
+    private final AxBlurBackgroundRenderer mAxBlurRenderer;
+    private final Object mAxBlurKey = new Object();
     private final Rect mBackgroundBounds = new Rect();
     private final boolean mDontModifyCorners;
     private Drawable mBackground;
@@ -88,8 +91,7 @@ public class NotificationBackgroundView extends View implements Dumpable,
     @VisibleForTesting
     protected View.OnAttachStateChangeListener mOnAttachStateChangeListener;
     private boolean mAxBlurEnabled;
-    private float mBlurFadeTop = 0f;
-    private float mBlurFadeBottom = 1f;
+    private int mAxBlurOverlayColor;
 
     // True only if the dismiss button is visible.
     private boolean mDrawDismissButtonCutout = false;
@@ -99,8 +101,9 @@ public class NotificationBackgroundView extends View implements Dumpable,
 
     public NotificationBackgroundView(Context context, AttributeSet attrs) {
         super(context, attrs);
-        mAxBlur = new BlurEngine(this);
-        mAxBlur.setOverlayColor(SurfaceEffectColors.surfaceEffect1(getContext()));
+        mAxBlurRenderer = new AxBlurBackgroundRenderer(this, AxBackdropBlurSettingsSpec.system(),
+                false);
+        mAxBlurOverlayColor = AxBlurColors.surfaceBrightTint(getContext());
         mDontModifyCorners = getResources().getBoolean(R.bool.config_clipNotificationsToOutline);
         mLightColoredStatefulColors = getResources().getColorStateList(
                 R.color.notification_state_color_light);
@@ -138,12 +141,19 @@ public class NotificationBackgroundView extends View implements Dumpable,
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         updateAxBlurOverlayColor();
+        mAxBlurRenderer.onAttachedToWindow();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        mAxBlurRenderer.onDetachedFromWindow();
+        super.onDetachedFromWindow();
     }
 
     @Override
     public void onVisibilityAggregated(boolean isVisible) {
         super.onVisibilityAggregated(isVisible);
-        mAxBlur.onVisibilityAggregated(isVisible);
+        mAxBlurRenderer.onVisibilityAggregated(isVisible);
     }
 
     @Override
@@ -313,30 +323,27 @@ public class NotificationBackgroundView extends View implements Dumpable,
         }
 
         mBackground.setBounds(bounds);
-        mAxBlur.setOverlayColor(overlayColorForCurrentState());
-        return mAxBlur.draw(
+        return mAxBlurRenderer.draw(
                 canvas,
+                mAxBlurKey,
                 bounds.left,
                 bounds.top,
                 bounds.right,
                 bounds.bottom,
                 mCornerRadii,
+                mAxBlurOverlayColor,
                 mBackground.getAlpha());
     }
 
     private boolean shouldDrawFallbackBackground(boolean drewAxBlur) {
-        return !drewAxBlur;
-    }
-
-    private int overlayColorForCurrentState() {
-        return SurfaceEffectColors.surfaceEffect1(getContext());
+        return !drewAxBlur && (!mAxBlurEnabled || !mAxBlurRenderer.isCrossWindowBlurActive());
     }
 
     @Override
     protected boolean verifyDrawable(Drawable who) {
         return super.verifyDrawable(who)
                 || who == mBackground
-                || mAxBlur.verifyDrawable(who);
+                || mAxBlurRenderer.verifyDrawable(who);
     }
 
     @Override
@@ -472,27 +479,12 @@ public class NotificationBackgroundView extends View implements Dumpable,
             return;
         }
         mAxBlurEnabled = enabled;
-        mAxBlur.setEnabled(enabled);
+        mAxBlurRenderer.setEnabled(enabled);
         invalidate();
-    }
-
-    public void setAxBlurAlphaSource(@Nullable View source) {
-        mAxBlur.setCrossWindowAlphaSource(source);
-        invalidate();
-    }
-
-    public void setBlurFadeRange(float fadeTop, float fadeBottom) {
-        if (mBlurFadeTop != fadeTop || mBlurFadeBottom != fadeBottom) {
-            mBlurFadeTop = fadeTop;
-            mBlurFadeBottom = fadeBottom;
-            mAxBlur.setFadeRange(fadeTop, fadeBottom);
-            invalidate();
-        }
     }
 
     private void updateAxBlurOverlayColor() {
-        int color = SurfaceEffectColors.surfaceEffect1(getContext());
-        mAxBlur.setOverlayColor(color);
+        mAxBlurOverlayColor = AxBlurColors.surfaceBrightTint(getContext());
         invalidate();
     }
 
@@ -722,11 +714,6 @@ public class NotificationBackgroundView extends View implements Dumpable,
         pw.println("mBackground: " + DrawableDumpKt.dumpToString(mBackground));
         pw.println("mBackgroundBlurDrawable: "
                 + DrawableDumpKt.dumpToString(mBackgroundBlurDrawable));
-        dumpBlur(pw);
-    }
-
-    public void dumpBlur(PrintWriter pw) {
-        mAxBlur.dump(pw);
     }
 
     /** create a concise dump of this view's colors */
