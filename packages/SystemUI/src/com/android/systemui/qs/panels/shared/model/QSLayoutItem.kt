@@ -85,7 +85,7 @@ sealed class QSLayoutItem {
 
         fun getDefault(): List<QSLayoutItem> =
             listOf(
-                TileItem(TileSpec.create("internet")),
+                TileItem(TileSpec.create("wifi")),
                 TileItem(TileSpec.create("bt")),
                 TileItem(TileSpec.create("dnd")),
                 TileItem(TileSpec.create("flashlight")),
