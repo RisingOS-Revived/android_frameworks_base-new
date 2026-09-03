@@ -7213,6 +7213,11 @@ public final class Settings {
         public static final String STATUS_BAR_DYNAMIC_ISLAND_LIVE_SCORES = "status_bar_dynamic_island_live_scores";
 
         /**
+         * @hide
+         */
+        public static final String STATUS_BAR_DYNAMIC_ISLAND_LYRICS = "status_bar_dynamic_island_lyrics";
+
+        /**
          * Lockscreen Media Art
          * @hide
          */
