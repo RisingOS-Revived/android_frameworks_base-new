@@ -15147,6 +15147,12 @@ public final class Settings {
         public static final String LOCK_SCREEN_CUSTOM_CLOCK_ROTATION = "lock_screen_custom_clock_rotation";
 
         /**
+         * clock blur (hyper os)
+         * @hide
+         */
+        public static final String LOCK_SCREEN_CUSTOM_CLOCK_HYPER_BLUR = "lock_screen_custom_clock_hyper_blur";
+
+        /**
          * Translucent notifications
          * @hide
          */
