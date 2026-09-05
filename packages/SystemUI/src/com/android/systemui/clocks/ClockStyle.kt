@@ -1,5 +1,6 @@
 /*
  * SPDX-FileCopyrightText: crDroid Android Project
+ * SPDX-FileCopyrightText: Lunaris AOSP
  * SPDX-License-Identifier: Apache-2.0
  */
 package com.android.systemui.clocks
@@ -63,6 +64,7 @@ class ClockStyle @JvmOverloads constructor(
 
     private val textClocks = ArrayList<TextClock>()
     private val styledTextViews = ArrayList<TextView>()
+    private val hyperClocks = ArrayList<HyperClockView>()
 
     private var clockStyle = DEFAULT_STYLE
     private var colorMode = COLOR_MODE_DEFAULT
@@ -409,6 +411,9 @@ class ClockStyle @JvmOverloads constructor(
         for (i in textClocks.indices) {
             textClocks[i].refreshTime()
         }
+        for (i in hyperClocks.indices) {
+            hyperClocks[i].refreshTime()
+        }
         lastUpdateTimeMillis = System.currentTimeMillis()
     }
 
@@ -418,6 +423,7 @@ class ClockStyle @JvmOverloads constructor(
         currentClockView = null
         textClocks.clear()
         styledTextViews.clear()
+        hyperClocks.clear()
         naturalClockHeight = 0
         clockContainer?.minimumHeight = 0
 
@@ -475,6 +481,10 @@ class ClockStyle @JvmOverloads constructor(
                 root.setTag(R.id.original_text_color, root.currentTextColor)
                 root.setTag(R.id.original_alpha, root.alpha)
                 styledTextViews.add(root)
+            }
+            is HyperClockView -> {
+                root.setTag(R.id.original_alpha, root.alpha)
+                hyperClocks.add(root)
             }
         }
         if (root is ViewGroup) {
@@ -599,7 +609,9 @@ class ClockStyle @JvmOverloads constructor(
     }
 
     private fun applyClockColors() {
-        if (isNoColorClock(clockStyle) || textClocks.isEmpty()) return
+        if (isNoColorClock(clockStyle)) return
+        applyHyperClockColors()
+        if (textClocks.isEmpty()) return
         val whiteColor = context.getColor(android.R.color.white)
         val useGradient = gradientEnabled && !isDozing
         for (i in textClocks.indices) {
@@ -648,6 +660,50 @@ class ClockStyle @JvmOverloads constructor(
                 else -> {
                     clearGradientFromView(tv)
                     tv.setTextColor(resolveClockColor())
+                }
+            }
+        }
+    }
+
+    private fun applyHyperClockColors() {
+        if (hyperClocks.isEmpty()) return
+        val whiteColor = context.getColor(android.R.color.white)
+        val useGradient = gradientEnabled && !isDozing
+        val clockColor = resolveClockColor()
+        val colorPicked = (clockColor and 0x00FFFFFF) != (whiteColor and 0x00FFFFFF)
+        val container = currentClockView
+        for (i in hyperClocks.indices) {
+            val hv = hyperClocks[i]
+            when {
+                isDozing -> {
+                    hv.setGradientShader(null)
+                    hv.setColonFollowsDigits(false)
+                    hv.setDigitColor(whiteColor)
+                    hv.setColonColor(whiteColor)
+                }
+                useGradient -> {
+                    hv.restoreColonColor()
+                    hv.setColonFollowsDigits(true)
+                    hv.setDigitColor(whiteColor)
+                    if (container != null && hv.width > 0 && hv.height > 0 &&
+                        container.width > 0 && container.height > 0
+                    ) {
+                        val (offsetX, offsetY) = getOffsetWithinAncestor(hv, container)
+                        hv.setGradientShader(
+                            buildGradientShader(
+                                container.width,
+                                container.height,
+                                offsetX,
+                                offsetY,
+                            )
+                        )
+                    }
+                }
+                else -> {
+                    hv.setGradientShader(null)
+                    hv.restoreColonColor()
+                    hv.setColonFollowsDigits(colorPicked)
+                    hv.setDigitColor(clockColor)
                 }
             }
         }
@@ -847,6 +903,11 @@ class ClockStyle @JvmOverloads constructor(
                         tv.setShadowLayer(radius, 0f, dy, currentGlowColor)
                     }
                 }
+                for (i in hyperClocks.indices) {
+                    val hv = hyperClocks[i]
+                    val origAlpha = hv.getTag(R.id.original_alpha) as? Float ?: 1f
+                    hv.alpha = flashAlpha * origAlpha
+                }
             }
             start()
         }
@@ -874,6 +935,11 @@ class ClockStyle @JvmOverloads constructor(
                 tv.alpha = (clockOpacity / 100f) * origAlpha
                 tv.setShadowLayer(0f, 0f, 0f, 0)
             }
+        }
+        for (i in hyperClocks.indices) {
+            val hv = hyperClocks[i]
+            val origAlpha = hv.getTag(R.id.original_alpha) as? Float ?: 1f
+            hv.alpha = (clockOpacity / 100f) * origAlpha
         }
     }
 
@@ -972,6 +1038,13 @@ class ClockStyle @JvmOverloads constructor(
             R.layout.keyguard_clock_space_age,      // 90
             R.layout.keyguard_clock_polyline,       // 91
             R.layout.keyguard_clock_oppo,           // 92
+            R.layout.keyguard_clock_hyperos_art2,    // 93
+            R.layout.keyguard_clock_hyperos_art4,    // 94
+            R.layout.keyguard_clock_hyperos_duo,     // 95
+            R.layout.keyguard_clock_hyperos_tall,    // 96
+            R.layout.keyguard_clock_hyperos_tall2,   // 97
+            R.layout.keyguard_clock_hyperos_tall3,   // 98
+            R.layout.keyguard_clock_hyperos_stack,   // 99
         )
 
         private val NO_COLOR_CLOCKS = hashSetOf(1, 2, 25, 26)
