@@ -31,4 +31,10 @@
     <dimen name="nt_qqs_layout_margin_top">0dp</dimen>
     <dimen name="custom_qs_tile_height">72dp</dimen>
     <dimen name="qs_brightness_slider_height">56dp</dimen>
+
+    <!-- Stacked Notification -->
+    <dimen name="lockscreen_notification_stack_peek">10dp</dimen>
+    <dimen name="lockscreen_notification_stack_elevation">2dp</dimen>
+    <dimen name="lockscreen_notification_stack_bottom_padding">16dp</dimen>
+    <dimen name="lockscreen_notification_stack_list_gap">6dp</dimen>
 </resources>

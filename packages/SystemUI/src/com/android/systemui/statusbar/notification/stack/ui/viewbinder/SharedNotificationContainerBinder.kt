@@ -61,6 +61,7 @@ constructor(
 ) {
 
     private val calculateMaxNotifications: (Float, Boolean) -> Int = { space, extraShelfSpace ->
+        controller.setLockscreenNotificationStackAvailableHeight(space)
         val shelfHeight = controller.getShelfHeight().toFloat()
         notificationStackSizeCalculator.computeMaxKeyguardNotifications(
             controller.view,
