@@ -7770,6 +7770,11 @@ public final class Settings {
         public static final String NOTIFICATION_ICONS_CENTER_ALIGNED = "notification_icons_center_aligned";
 
         /**
+         * @hide
+         */
+        public static final String LOCK_SCREEN_NOTIFICATIONS_ANCHOR_POSITION = "lock_screen_notifications_anchor_position";
+
+        /**
          * Arcane Idle Manager
          * @hide
          */

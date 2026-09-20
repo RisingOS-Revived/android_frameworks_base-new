@@ -1295,6 +1295,9 @@ public class NotificationStackScrollLayout
 
         // Once the layout has finished, we don't need to animate any scrolling clampings anymore.
         mAnimateStackYForContentHeightChange = false;
+        if (changed && areLockscreenNotificationsBottomAnchored()) {
+            notifyHeightChangeListener(mShelf);
+        }
     }
 
     private void requestAnimationOnViewResize(ExpandableNotificationRow row) {
@@ -4082,6 +4085,14 @@ public class NotificationStackScrollLayout
         if (SceneContainerFlag.isUnexpectedlyInLegacyMode()) {
             return false;
         }
+        RectF bounds = mAmbientState.getDrawBounds();
+        if (isLockscreenNotificationLayoutActive() && areLockscreenNotificationsBottomAnchored()) {
+            // The selected anchor can extend below the default fingerprint boundary.
+            final float bottom = Math.max(bounds.bottom,
+                    mStackScrollAlgorithm.getLockscreenNotificationStack().getBottom());
+            return x >= bounds.left && x < bounds.right && y >= bounds.top && y < bottom;
+        }
+        return bounds.contains(x, y);
 
         ShadeScrimShape shape = mScrollViewFields.clippingShape;
         if (shape == null) {
@@ -6085,7 +6096,6 @@ public class NotificationStackScrollLayout
 
     @Override
     public int calculateMaxNotifications(int availableSpace, boolean useExtraShelfSpace) {
-        setLockscreenNotificationStackAvailableHeight(availableSpace);
         int shelfHeight = mShelf != null ? mShelf.getIntrinsicHeight() : 0;
         return mNotificationStackSizeCalculator.computeMaxKeyguardNotifications(
                 /* stack = */ this,
@@ -6200,12 +6210,6 @@ public class NotificationStackScrollLayout
         }
     }
 
-    public void setLockscreenNotificationStackAvailableHeight(float height) {
-        if (mStackScrollAlgorithm.getLockscreenNotificationStack().setAvailableHeight(height)) {
-            requestChildrenUpdate();
-        }
-    }
-
     public void setLockscreenNotificationsBottomAnchored(boolean bottomAnchored) {
         if (mStackScrollAlgorithm.getLockscreenNotificationStack()
                 .setBottomAnchored(bottomAnchored)) {
@@ -6216,8 +6220,38 @@ public class NotificationStackScrollLayout
         }
     }
 
-    public float getLockscreenNotificationBottomPadding() {
-        return mStackScrollAlgorithm.getLockscreenNotificationStack().getBottomPadding();
+    public void setLockscreenNotificationAnchorPosition(int position) {
+        if (mStackScrollAlgorithm.getLockscreenNotificationStack().setAnchorPosition(position)
+                && areLockscreenNotificationsBottomAnchored()) {
+            requestAnimateLockscreenNotificationStack();
+            requestChildrenUpdate();
+            notifyHeightChangeListener(mShelf);
+        }
+    }
+
+    public boolean areLockscreenNotificationsBottomAnchored() {
+        return mStackScrollAlgorithm.getLockscreenNotificationStack().isBottomAnchored();
+    }
+
+    public float getLockscreenNotificationAvailableHeight(float defaultHeight) {
+        if (!areLockscreenNotificationsBottomAnchored()) {
+            return defaultHeight;
+        }
+        final View root = getRootView();
+        root.getLocationOnScreen(mTempInt2);
+        final int rootTop = mTempInt2[1];
+        getLocationOnScreen(mTempInt2);
+        // Exclude the view's animated translation so the anchor follows lock screen transitions.
+        final float viewTop = mTempInt2[1] - rootTop - getTranslationY();
+        final float stackTop = SceneContainerFlag.isEnabled()
+                ? mAmbientState.getStackTop() : mAmbientState.getTopPadding();
+        final WindowInsets insets = root.getRootWindowInsets();
+        final int bottomInset = insets != null ? insets.getInsetsIgnoringVisibility(
+                WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()).bottom : 0;
+        final float height = mStackScrollAlgorithm.getLockscreenNotificationStack()
+                .getAvailableHeight(defaultHeight, root.getHeight(), viewTop, stackTop, bottomInset);
+        requestChildrenUpdate();
+        return height;
     }
 
     private void requestAnimateLockscreenNotificationStack() {
