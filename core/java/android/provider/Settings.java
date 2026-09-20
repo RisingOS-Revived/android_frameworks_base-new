@@ -12901,6 +12901,12 @@ public final class Settings {
         /**
          * @hide
          */
+        public static final String LOCK_SCREEN_MOTO_COMPACT_NOTIFICATIONS =
+                "lock_screen_moto_compact_notifications";
+
+        /**
+         * @hide
+         */
         public static final String LOCK_SCREEN_STACKED_NOTIFICATIONS =
                 "lock_screen_stacked_notifications";
 
