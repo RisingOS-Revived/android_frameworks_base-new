@@ -3957,7 +3957,7 @@ public class NotificationStackScrollLayout
      * @return Whether a y coordinate is inside the content.
      */
     public boolean isInContentBounds(float y) {
-        if (isLockscreenNotificationStackInteractive()
+        if (isLockscreenNotificationLayoutActive()
                 && mStackScrollAlgorithm.getLockscreenNotificationStack().getBottom() > 0f) {
             return y < mStackScrollAlgorithm.getLockscreenNotificationStack().getBottom();
         }
@@ -6089,9 +6089,9 @@ public class NotificationStackScrollLayout
         int shelfHeight = mShelf != null ? mShelf.getIntrinsicHeight() : 0;
         return mNotificationStackSizeCalculator.computeMaxKeyguardNotifications(
                 /* stack = */ this,
-                /* space = */ availableSpace,
-                /* shelfHeight = */ shelfHeight,
-                /* extraShelfSpace = */ useExtraShelfSpace ? shelfHeight : 0
+                /* notifSpace = */ availableSpace,
+                /* shelfSpace = */ useExtraShelfSpace ? shelfHeight : 0,
+                /* shelfHeight = */ shelfHeight
         );
     }
 
@@ -6206,8 +6206,22 @@ public class NotificationStackScrollLayout
         }
     }
 
+    public void setLockscreenNotificationsBottomAnchored(boolean bottomAnchored) {
+        if (mStackScrollAlgorithm.getLockscreenNotificationStack()
+                .setBottomAnchored(bottomAnchored)) {
+            mCollapseStackOnTouchUp = false;
+            requestAnimateLockscreenNotificationStack();
+            requestChildrenUpdate();
+            notifyHeightChangeListener(mShelf);
+        }
+    }
+
+    public float getLockscreenNotificationBottomPadding() {
+        return mStackScrollAlgorithm.getLockscreenNotificationStack().getBottomPadding();
+    }
+
     private void requestAnimateLockscreenNotificationStack() {
-        if (mIsExpanded && mAnimationsEnabled && (isLockscreenNotificationStackInteractive()
+        if (mIsExpanded && mAnimationsEnabled && (isLockscreenNotificationLayoutActive()
                 || shouldAnimateLockscreenNotificationStack())) {
             mLockscreenStackNeedsAnimation = true;
             mNeedsAnimation = true;
@@ -6240,8 +6254,12 @@ public class NotificationStackScrollLayout
     }
 
     private boolean isLockscreenNotificationStackInteractive() {
+        return isLockscreenNotificationLayoutActive()
+                && mStackScrollAlgorithm.getLockscreenNotificationStack().isEnabled();
+    }
+
+    private boolean isLockscreenNotificationLayoutActive() {
         return mStackScrollAlgorithm != null
-                && mStackScrollAlgorithm.getLockscreenNotificationStack().isEnabled()
                 && (SceneContainerFlag.isEnabled() ? mIsOnLockscreen : onKeyguard())
                 && !mAmbientState.isDozing() && mAmbientState.getDozeAmount() == 0f
                 && !mAmbientState.isPulsing() && !mAmbientState.isPulseExpanding()
