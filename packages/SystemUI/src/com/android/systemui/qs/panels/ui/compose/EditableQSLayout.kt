@@ -80,6 +80,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -95,6 +96,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -145,6 +147,8 @@ import com.android.systemui.animation.Expandable
 import com.android.systemui.plugins.qs.QSTile
 import com.android.systemui.qs.panels.shared.model.FloatingTile
 import com.android.systemui.qs.panels.shared.model.GridPlacement
+import com.android.systemui.qs.panels.shared.model.QSControl
+import com.android.systemui.qs.panels.shared.model.QSControlSpan
 import com.android.systemui.qs.panels.shared.model.QSLayoutItem
 import com.android.systemui.qs.panels.shared.model.SectionConfig
 import com.android.systemui.qs.panels.shared.model.SectionType
@@ -168,6 +172,23 @@ private val SECTION_SPACING = 8.dp
 
 private const val ONEUI_SPRING_STIFFNESS = 350f
 private const val ONEUI_SPRING_DAMPING = 0.85f
+
+@Immutable
+class QSControlRenderer(
+    val cornerRadius: (QSControl, DpSize) -> Dp,
+    val content: @Composable (control: QSControl, span: QSControlSpan, interactive: Boolean) -> Unit,
+)
+
+val LocalQSControlRenderer = staticCompositionLocalOf<QSControlRenderer?> { null }
+
+fun TileSpec?.asQSControl(): QSControl? =
+    this?.let { s -> QSControl.fromId(s.spec) }
+
+fun TileSpec?.bypassesOneUiContainer(): Boolean =
+    this != null && (spec == "brightness" || asQSControl() != null)
+
+private fun SectionType.isRenderedInQs(): Boolean =
+    this != SectionType.BRIGHTNESS && this != SectionType.MEDIA
 
 object FloatingTileDragState {
     var isDragging by mutableStateOf(false)
@@ -591,7 +612,7 @@ fun EditableQuickSettingsLayout(
 
         fun isVisibleSwapSegment(seg: Segment): Boolean = when (seg) {
             is Segment.TileGroup -> true
-            is Segment.Header -> seg.item.visible && seg.item.type != SectionType.BRIGHTNESS
+            is Segment.Header -> seg.item.visible && seg.item.type.isRenderedInQs()
         }
 
         fun swapWithTileBand(targetIdx: Int) {
@@ -686,11 +707,11 @@ fun EditableQuickSettingsLayout(
                         segHeightPx.containsKey(seg.stableId()) &&
                         when (seg) {
                             is Segment.TileGroup -> true
-                            is Segment.Header -> seg.item.visible && seg.item.type != SectionType.BRIGHTNESS
+                            is Segment.Header -> seg.item.visible && seg.item.type.isRenderedInQs()
                         }
             }
 
-            val isBrightnessDrag = FloatingTileDragState.draggingTileSpec?.spec == "brightness"
+            val isBrightnessDrag = FloatingTileDragState.draggingTileSpec.bypassesOneUiContainer()
             if (isEditingOneUi || (!isBrightnessDrag && oneUIContainerBounds.contains(FloatingTileDragState.dragPosition))) {
                 dragOverSegId = null
             } else {
@@ -789,7 +810,7 @@ fun EditableQuickSettingsLayout(
         if (FloatingTileDragState.dropRequested && FloatingTileDragState.isExternalDrag) {
             val spec = FloatingTileDragState.draggingTileSpec
             if (spec != null) {
-                val isBrightnessDrag = spec.spec == "brightness"
+                val isBrightnessDrag = spec.bypassesOneUiContainer()
                 if (isEditingOneUi || (!isBrightnessDrag && oneUIContainerBounds.contains(FloatingTileDragState.dragPosition))) {
                     val canUseOneUiGhostOrder =
                         (FloatingTileDragState.ghostFloatingTile?.spanRows ?: 1) <= 1 &&
@@ -799,8 +820,13 @@ fun EditableQuickSettingsLayout(
                     onDropInOneUIContainer(spec, newOrder)
                 } else {
                     val targetId = dragOverSegId ?: localSegments.firstOrNull { it is Segment.TileGroup }?.stableId()
-                    val spanCols = FloatingTileDragState.ghostFloatingTile?.spanCols ?: if (isBrightnessDrag) 3 else 1
-                    val spanRows = FloatingTileDragState.ghostFloatingTile?.spanRows ?: 1
+                    val controlDefault = spec.asQSControl()?.spans(4)?.default
+                    val spanCols = FloatingTileDragState.ghostFloatingTile?.spanCols
+                        ?: controlDefault?.columns
+                        ?: if (spec.spec == "brightness") 3 else 1
+                    val spanRows = FloatingTileDragState.ghostFloatingTile?.spanRows
+                        ?: controlDefault?.rows
+                        ?: 1
 
                     if (targetId != null) {
                         sectionEditModeViewModel.addMainQSTile(FloatingTile(spec, SectionType.TILES, spanCols, spanRows))
@@ -831,13 +857,13 @@ fun EditableQuickSettingsLayout(
             modifier = Modifier.fillMaxWidth()
         ) {
             val allSegmentsForRender = localSegments.filter {
-                !(it is Segment.Header && it.item.type == SectionType.BRIGHTNESS)
+                !(it is Segment.Header && !it.item.type.isRenderedInQs())
             }
 
             val visibleSegIds = localSegments
                 .filter { seg ->
                     when (seg) {
-                        is Segment.Header    -> seg.item.visible && seg.item.type != SectionType.BRIGHTNESS
+                        is Segment.Header    -> seg.item.visible && seg.item.type.isRenderedInQs()
                         is Segment.TileGroup -> true
                     }
                 }
@@ -971,7 +997,7 @@ fun EditableQuickSettingsLayout(
                                                 tileSourceSegId = segId
                                             },
                                             isDropExternal  = {
-                                                val isBrightnessDrag = FloatingTileDragState.draggingTileSpec?.spec == "brightness"
+                                                val isBrightnessDrag = FloatingTileDragState.draggingTileSpec.bypassesOneUiContainer()
                                                 (dragOverSegId != null && dragOverSegId != segId) ||
                                                 isEditingOneUi || (!isBrightnessDrag && oneUIContainerBounds.contains(FloatingTileDragState.dragPosition))
                                             },
@@ -1002,7 +1028,7 @@ fun EditableQuickSettingsLayout(
                                                 onRemoveTileFromSystem(spec)
                                             },
                                             onTileDragEnd = { tileSpec ->
-                                                val isBrightnessDrag = tileSpec.spec == "brightness"
+                                                val isBrightnessDrag = tileSpec.bypassesOneUiContainer()
                                                 if (isEditingOneUi || (!isBrightnessDrag && oneUIContainerBounds.contains(FloatingTileDragState.dragPosition))) {
                                                     val newSegs = localSegments.toMutableList()
                                                     var changed = false
@@ -1129,7 +1155,7 @@ fun EditableQuickSettingsLayout(
                 val rootX = rootCoords.positionInRoot().x
                 val rootY = rootCoords.positionInRoot().y
 
-                val isBrightnessDrag = draggingSpec.spec == "brightness"
+                val isBrightnessDrag = draggingSpec.bypassesOneUiContainer()
                 val isOneUiDrag = isEditingOneUi || (!isBrightnessDrag && oneUIContainerBounds.contains(FloatingTileDragState.dragPosition))
 
                 Box(
@@ -1796,7 +1822,15 @@ fun DraggableGrid(
                                 ghostMagY = magnet(currentAccumY)
                             },
                             onPreviewResize = { newCols, newRows ->
-                                if (tile.spec.spec == "brightness") {
+                                val resizeControl = tile.spec.asQSControl()
+                                if (resizeControl != null && !resizeControl.isSlider) {
+                                    val coerced = resizeControl.coerceSpan(
+                                        QSControlSpan(newCols.coerceIn(1, 4), newRows.coerceIn(1, 4)),
+                                        columns = 4,
+                                    )
+                                    proposedCols = coerced.columns
+                                    proposedRows = coerced.rows
+                                } else if (tile.spec.spec == "brightness" || resizeControl?.isSlider == true) {
                                     val isHorizontalPref = if (newCols > newRows) true
                                                            else if (newRows > newCols) false
                                                            else tile.spanCols > tile.spanRows
@@ -1858,6 +1892,9 @@ fun DraggableTile(
     interactionsEnabled: Boolean = true,
 ) {
     val isBrightness = tile.spec.spec == "brightness"
+    val controlRenderer = LocalQSControlRenderer.current
+    val resolvedControl = remember(tile.spec) { tile.spec.asQSControl() }
+    val qsControl = resolvedControl.takeIf { controlRenderer != null }
     val fallbackEditTile = editTile ?: FloatingTileDragState.fallbackTiles[tile.spec]
     val context = LocalContext.current
 
@@ -1904,6 +1941,7 @@ fun DraggableTile(
     }
 
     val label = state?.label ?: fallbackEditTile?.label?.text ?: fallbackCustomLabel ?: tile.spec.spec
+    val summary = state?.secondaryLabel?.toString()?.trim()?.takeIf { it.isNotEmpty() }
     val isActive = state?.state == Tile.STATE_ACTIVE
     val isSquare = tile.spanCols == tile.spanRows
     val isPill   = !isSquare
@@ -1956,7 +1994,7 @@ fun DraggableTile(
             with(density) { liveH.toPx() }
         }
 
-        if (isResizing && !isBrightness) {
+        if (isResizing && !isBrightness && qsControl == null) {
             val outlineColor = MaterialTheme.colorScheme.primary
             val tilePxW = with(density) { liveW.toPx() }
             val tilePxH = with(density) { liveH.toPx() }
@@ -1994,9 +2032,33 @@ fun DraggableTile(
             }
         }
 
-        val showBorder = (!isResizing || isBrightness) && isEditMode && !isOneUi
+        val showBorder = (!isResizing || isBrightness || qsControl != null) && isEditMode && !isOneUi
 
-        if (useAospStyle) {
+        if (qsControl != null && controlRenderer != null) {
+            val controlSpan = QSControlSpan(
+                tile.spanCols.coerceIn(QSControlSpan.MIN_COLUMNS, QSControlSpan.MAX_COLUMNS),
+                tile.spanRows.coerceIn(QSControlSpan.MIN_ROWS, QSControlSpan.MAX_ROWS),
+            )
+            val controlShape = RoundedCornerShape(
+                controlRenderer.cornerRadius(qsControl, DpSize(liveW, liveH))
+            )
+            Surface(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (showBorder) Modifier.border(
+                            width = 2.dp,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                            shape = controlShape,
+                        ) else Modifier
+                    ),
+                shape = controlShape,
+                color = Color.Transparent,
+                shadowElevation = 0.dp,
+            ) {
+                controlRenderer.content(qsControl, controlSpan, !isEditMode && interactionsEnabled)
+            }
+        } else if (useAospStyle) {
             val aospColors = EditModeTileDefaults.editTileColors()
             val aospBackground = if (isActive) MaterialTheme.colorScheme.primary else aospColors.background
             val aospIconColor = if (isActive) MaterialTheme.colorScheme.onPrimary else aospColors.icon
@@ -2204,9 +2266,20 @@ fun DraggableTile(
                                     exit = fadeOut(tween(150))
                                 ) {
                                     @OptIn(ExperimentalFoundationApi::class)
-                                    Text(label.toString(), style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold, color = contentColor, maxLines = 1,
-                                        modifier = Modifier.padding(end = 16.dp).basicMarquee())
+                                    Column(
+                                        modifier = Modifier.padding(end = 16.dp),
+                                        verticalArrangement = Arrangement.Center,
+                                    ) {
+                                        Text(label.toString(), style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold, color = contentColor, maxLines = 1,
+                                            modifier = Modifier.basicMarquee())
+                                        if (summary != null) {
+                                            Text(summary, style = MaterialTheme.typography.bodySmall,
+                                                color = contentColor.copy(alpha = contentColor.alpha * 0.7f),
+                                                maxLines = 1,
+                                                modifier = Modifier.basicMarquee())
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -2223,7 +2296,12 @@ fun DraggableTile(
                     .graphicsLayer { }
                     .zIndex(30f)
             ) {
-                val cornerRadius = minOf(liveW, liveH) / 2f
+                val cornerRadius =
+                    if (qsControl != null && controlRenderer != null) {
+                        controlRenderer.cornerRadius(qsControl, DpSize(liveW, liveH))
+                    } else {
+                        minOf(liveW, liveH) / 2f
+                    }
                 val cornerRadiusPx = with(density) { cornerRadius.toPx() }
                 val liveWPx = with(density) { liveW.toPx() }
                 val liveHPx = with(density) { liveH.toPx() }
@@ -2313,7 +2391,7 @@ fun DraggableTile(
                         onUpdateGhost = onUpdateGhost,
                         onPreviewResize = onPreviewResize,
                         onResizeEnd   = onResizeEnd,
-                        isBrightness = isBrightness,
+                        isBrightness = isBrightness || qsControl?.isSlider == true,
                         modifier     = Modifier
                             .offset {
                                 IntOffset(

@@ -24,6 +24,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -122,6 +123,7 @@ fun OneUITileContainer(
     tileMargin: Dp = 12.dp,
     cellSizeScale: Float = 1f,
     evenEdgeSpacing: Boolean = false,
+    animateSize: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
@@ -148,15 +150,23 @@ fun OneUITileContainer(
                 collapsedRows == 1 -> 200.dp
                 else               -> 28.dp
             },
-            animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
+            animationSpec = if (animateSize) {
+                tween(durationMillis = 420, easing = FastOutSlowInEasing)
+            } else {
+                snap()
+            },
             label = "OneUICornerRadius",
         )
         val containerShape = RoundedCornerShape(cornerRadius)
 
         val contentAlpha = remember { Animatable(1f) }
-        LaunchedEffect(isExpanded) {
-            contentAlpha.snapTo(0.82f)
-            contentAlpha.animateTo(1f, tween(320, easing = FastOutSlowInEasing))
+        LaunchedEffect(isExpanded, animateSize) {
+            if (animateSize) {
+                contentAlpha.snapTo(0.82f)
+                contentAlpha.animateTo(1f, tween(320, easing = FastOutSlowInEasing))
+            } else {
+                contentAlpha.snapTo(1f)
+            }
         }
 
         val primary = MaterialTheme.colorScheme.primary
@@ -207,63 +217,76 @@ fun OneUITileContainer(
                         MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
                     shape = containerShape
                 )
-                .animateContentSize(tween(durationMillis = 420, easing = FastOutSlowInEasing))
+                .then(
+                    if (animateSize) {
+                        Modifier.animateContentSize(tween(durationMillis = 420, easing = FastOutSlowInEasing))
+                    } else {
+                        Modifier.clipToBounds()
+                    }
+                )
                 .then(
                     if (isExpanded) Modifier.wrapContentHeight()
                     else Modifier.height(collapsedH)
                 )
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            val barReserve = when {
+                !isExpanded -> 0.dp
+                isEditMode -> 16.dp
+                else -> 28.dp
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (!isExpanded) Modifier.height(collapsedH)
+                        else Modifier.wrapContentHeight()
+                    )
+                    .padding(bottom = barReserve),
+                contentAlignment = Alignment.Center,
+            ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .padding(horizontal = contentPaddingH)
                         .then(
-                            if (!isExpanded) Modifier.height(tileAreaH)
-                            else Modifier.wrapContentHeight()
-                        ),
+                            if (isExpanded) {
+                                Modifier.padding(vertical = contentPaddingV)
+                            } else {
+                                Modifier.heightIn(max = tilesH).clipToBounds()
+                            }
+                        )
+                        .alpha(contentAlpha.value)
+                        .alpha(1f - editOverlayAlpha * 0.55f),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Box(
+                    Box {
+                        content()
+                    }
+                }
+
+                if (editOverlayAlpha > 0f) {
+                    TextButton(
+                        onClick = onEditClick,
                         modifier = Modifier
-                            .padding(
-                                horizontal = contentPaddingH,
-                                vertical = contentPaddingV,
-                            )
-                            .alpha(contentAlpha.value)
-                            .alpha(1f - editOverlayAlpha * 0.55f),
-                        contentAlignment = Alignment.Center,
+                            .zIndex(1f)
+                            .alpha(editOverlayAlpha)
+                            .scale(0.85f + 0.15f * editOverlayAlpha),
+                        colors = ButtonDefaults.textButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                                .copy(alpha = 0.9f),
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                        ),
                     ) {
-                        Box {
-                            content()
-                        }
-                    }
-
-                    if (editOverlayAlpha > 0f) {
-                        TextButton(
-                            onClick = onEditClick,
-                            modifier = Modifier
-                                .zIndex(1f)
-                                .alpha(editOverlayAlpha)
-                                .scale(0.85f + 0.15f * editOverlayAlpha),
-                            colors = ButtonDefaults.textButtonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
-                                    .copy(alpha = 0.9f),
-                                contentColor = MaterialTheme.colorScheme.onSurface,
-                            ),
-                        ) {
-                            Text(stringResource(R.string.qs_edit))
-                        }
+                        Text(stringResource(R.string.qs_edit))
                     }
                 }
+            }
 
-                if (!isEditMode) {
-                    OneUIExpandBar(
-                        isExpanded = isExpanded,
-                        onExpandChange = onExpandChange,
-                    )
-                } else {
-                    Spacer(modifier = Modifier.fillMaxWidth().height(16.dp))
-                }
+            if (!isEditMode) {
+                OneUIExpandBar(
+                    isExpanded = isExpanded,
+                    onExpandChange = onExpandChange,
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
             }
         }
     }
@@ -273,6 +296,7 @@ fun OneUITileContainer(
 fun OneUIExpandBar(
     isExpanded: Boolean,
     onExpandChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var dragOffset by remember { mutableFloatStateOf(0f) }
     val threshold = 40f
@@ -285,7 +309,7 @@ fun OneUIExpandBar(
     )
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(if (isExpanded) 28.dp else 14.dp)
             .background(Color.Transparent)
@@ -342,6 +366,7 @@ fun OneUiInsideTileArea(
     cellSizeScale: Float = 1f,
     evenEdgeSpacing: Boolean = false,
     interactionsEnabled: Boolean = true,
+    animateSize: Boolean = true,
 ) {
 
     val floatingTiles = remember(insideSpecs) {
@@ -373,7 +398,13 @@ fun OneUiInsideTileArea(
     Box(
         modifier = modifier
             .scale(landingScale.value)
-            .animateContentSize(tween(durationMillis = 280, easing = FastOutSlowInEasing))
+            .then(
+                if (animateSize) {
+                    Modifier.animateContentSize(tween(durationMillis = 280, easing = FastOutSlowInEasing))
+                } else {
+                    Modifier
+                }
+            )
             .onGloballyPositioned { localRootCoordinates = it },
     ) {
         DraggableGrid(
