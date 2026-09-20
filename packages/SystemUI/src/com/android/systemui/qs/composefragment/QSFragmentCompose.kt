@@ -108,6 +108,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -248,6 +249,13 @@ import com.android.systemui.qs.panels.ui.compose.infinitegrid.OneUITileContainer
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.OneUIExpandBar
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.OneUiInsideTileArea
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.OneUiEditScreen
+import com.android.systemui.qs.panels.shared.model.QSControl
+import com.android.systemui.qs.panels.ui.compose.LocalQSControlRenderer
+import com.android.systemui.qs.panels.ui.compose.QSControlContent
+import com.android.systemui.qs.panels.ui.compose.QSControlRenderer
+import com.android.systemui.qs.panels.ui.compose.asQSControl
+import com.android.systemui.qs.panels.ui.compose.bypassesOneUiContainer
+import com.android.systemui.qs.panels.ui.compose.qsControlCornerRadius
 import com.android.systemui.qs.ui.composable.QuickSettingsShade
 import com.android.systemui.qs.ui.composable.QuickSettingsShade.systemGestureExclusionInShade
 import com.android.systemui.qs.ui.composable.QuickSettingsTheme
@@ -314,6 +322,7 @@ constructor(
     private val qqsPositionOnRoot = Rect()
     private val composeViewPositionOnScreen = Rect()
     private val scrollState = ScrollState(0)
+    private var oneUiContainerExpanded by mutableStateOf(false)
     private val locationTemp = IntArray(2)
     private var bottomBarPositionInRoot = IntRect(IntOffset(0, 0), 0)
     private var bottomContentPadding by mutableIntStateOf(0)
@@ -365,8 +374,9 @@ constructor(
         val canScrollQs =
             object : CanScrollQs {
                 override fun forward(): Boolean {
-                    return (scrollState.canScrollForward && viewModel.isQsFullyExpanded) ||
-                        isCustomizing
+                    return (scrollState.canScrollForward &&
+                        viewModel.isQsFullyExpanded &&
+                        !oneUiContainerExpanded) || isCustomizing
                 }
 
                 override fun backward(): Boolean {
@@ -402,6 +412,31 @@ constructor(
 
     @Composable
     private fun Content(modifier: Modifier = Modifier) {
+        CompositionLocalProvider(LocalQSControlRenderer provides rememberQSControlRenderer()) {
+            ContentInner(modifier)
+        }
+    }
+
+    @Composable
+    private fun rememberQSControlRenderer(): QSControlRenderer {
+        val brightnessViewModel = viewModel.containerViewModel.brightnessSliderViewModel
+        return remember(brightnessViewModel) {
+            QSControlRenderer(
+                cornerRadius = { control, size -> qsControlCornerRadius(control, size) },
+                content = { control, span, interactive ->
+                    QSControlContent(
+                        control = control,
+                        span = span,
+                        interactive = interactive,
+                        brightnessViewModel = brightnessViewModel,
+                    )
+                },
+            )
+        }
+    }
+
+    @Composable
+    private fun ContentInner(modifier: Modifier = Modifier) {
         val showTilePicker by viewModel.showTilePicker.collectAsStateWithLifecycle()
         val isEditingSections by viewModel.sectionEditModeViewModel.isEditingSections.collectAsStateWithLifecycle()
         val isEditingOneUi by viewModel.isEditingOneUi.collectAsStateWithLifecycle()
@@ -474,9 +509,10 @@ constructor(
                 val missingSpecs = backendSpecs.filter { it !in allFrontendSpecs && it !in lastPushedSpecs }
                 if (missingSpecs.isNotEmpty()) {
                     missingSpecs.forEach { spec ->
-                        val spanCols = if (spec.spec == "brightness") 3 else 1
+                        val controlDefault = spec.asQSControl()?.spans(4)?.default
+                        val spanCols = controlDefault?.columns ?: if (spec.spec == "brightness") 3 else 1
                         viewModel.sectionEditModeViewModel.addMainQSTile(
-                            FloatingTile(spec, SectionType.TILES, spanCols, 1)
+                            FloatingTile(spec, SectionType.TILES, spanCols, controlDefault?.rows ?: 1)
                         )
                     }
                 }
@@ -562,6 +598,7 @@ constructor(
                         ) {
                             val availableTiles by viewModel.getTilesForPicker().collectAsStateWithLifecycle(emptyList())
                             val density = LocalDensity.current
+                            val controlRenderer = LocalQSControlRenderer.current
 
                             FullScreenTilePicker(
                                 allTiles = availableTiles,
@@ -577,6 +614,36 @@ constructor(
                                     )
                                     viewModel.containerViewModel.editModeViewModel.addTile(tile.tileSpec)
                                     viewModel.closeTilePicker()
+                                },
+                                controlPreview = { control, span ->
+                                    if (controlRenderer != null) {
+                                        controlRenderer.content(control, span, false)
+                                    }
+                                },
+                                isControlAdded = { control ->
+                                    flatLayout.any { it is QSLayoutItem.TileItem && it.spec.spec == control.id }
+                                },
+                                onControlDragStart = { control, span, position, size ->
+                                    if (!viewModel.wasEditingBeforePicker) {
+                                        viewModel.containerViewModel.editModeViewModel.stopEditing()
+                                    }
+                                    viewModel.sectionEditModeViewModel.startEditingSections()
+
+                                    val half = with(density) {
+                                        Offset(size.width.toPx() / 2, size.height.toPx() / 2)
+                                    }
+                                    com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.startDrag(
+                                        tile = FloatingTile(
+                                            TileSpec.create(control.id),
+                                            SectionType.TILES,
+                                            span.columns,
+                                            span.rows,
+                                        ),
+                                        position = position - half,
+                                        size = size,
+                                        sourceSection = SectionType.TILES,
+                                    )
+                                    com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.isExternalDrag = true
                                 },
                                 onTileDragStart = { tile, position ->
                                     if (!viewModel.wasEditingBeforePicker) {
@@ -1174,6 +1241,18 @@ constructor(
                 }
         }
 
+        LaunchedEffect(Unit) {
+            snapshotFlow { viewModel.isQsFullyExpanded }
+                .collect { fullyExpanded ->
+                    if (!fullyExpanded && isTilesExpanded) {
+                        isTilesExpanded = false
+                        scrollState.scrollTo(0)
+                    }
+                }
+        }
+        SideEffect { oneUiContainerExpanded = isTilesExpanded }
+        DisposableEffect(Unit) { onDispose { oneUiContainerExpanded = false } }
+
         var swipeBackProgress by remember { mutableFloatStateOf(0f) }
         val swipeBackAlpha by animateFloatAsState(
             targetValue = 1f - swipeBackProgress,
@@ -1399,7 +1478,7 @@ constructor(
                                         val isDropHover by remember {
                                             derivedStateOf {
                                                 com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.isDragging &&
-                                                    com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.draggingTileSpec?.spec != "brightness" &&
+                                                    !com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.draggingTileSpec.bypassesOneUiContainer() &&
                                                     oneUIContainerBounds.contains(
                                                         com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.dragPosition
                                                     )
@@ -1411,9 +1490,13 @@ constructor(
                                             }
                                         }
 
+                                        val isFullyExpanded = viewModel.isQsFullyExpanded
+                                        val containerExpanded = isTilesExpanded && isFullyExpanded
+
                                         if (insideTiles.isNotEmpty() || isEditingSections) {
                                             OneUITileContainer(
-                                                isExpanded = isTilesExpanded,
+                                                isExpanded = containerExpanded,
+                                                animateSize = isFullyExpanded,
                                                 collapsedRows = collapsedRows,
                                                 onExpandChange = { isTilesExpanded = it },
                                                 onEditClick = {
@@ -1434,7 +1517,7 @@ constructor(
                                                     }
                                             ) {
                                                 CompositionLocalProvider(
-                                                    LocalQSCompactMode provides !isTilesExpanded,
+                                                    LocalQSCompactMode provides !containerExpanded,
                                                     LocalCollapsedRows provides collapsedRows
                                                 ) {
                                                     OneUiInsideTileArea(
@@ -1445,6 +1528,7 @@ constructor(
                                                             isDropHover && canReorderDropInOneUi,
                                                         containerBounds = oneUIContainerBounds,
                                                         interactionsEnabled = !isEditingSections,
+                                                        animateSize = isFullyExpanded,
                                                         onTileClick = { spec, expandable ->
                                                             containerViewModel.tileGridViewModel.onTileClick(spec, expandable)
                                                         },
@@ -1466,23 +1550,6 @@ constructor(
                                             }
                                         }
                                     }
-
-                                val Media = @Composable {
-                                    Element(MiniPlayerElementKey.MiniPlayer, modifier = Modifier.fillMaxWidth()) {
-                                        val miniPlayerViewModel = rememberViewModel("MiniPlayerQS") {
-                                            miniPlayerViewModelFactory.create()
-                                        }
-                                        val expansionProgress by remember {
-                                            derivedStateOf { viewModel.expansionState.progress }
-                                        }
-                                        MiniPlayerCompact(
-                                            viewModel = miniPlayerViewModel,
-                                            compact = false,
-                                            expansionProgress = expansionProgress,
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-                                    }
-                                }
 
                                 Box(
                                     modifier =
@@ -1521,7 +1588,7 @@ constructor(
                                             viewModel.containerViewModel.editModeViewModel.removeTile(spec)
                                         },
                                         tiles = TileGrid,
-                                        media = Media,
+                                        media = {}, // media lives in QQS only
                                         oneUIContainerBounds = oneUIContainerBounds,
                                         onDropInOneUIContainer = { spec, newOrder ->
                                             val shouldAppendToEnd =
@@ -1556,7 +1623,7 @@ constructor(
 
                 val removedSectionHeaders = flatLayout
                     .filterIsInstance<QSLayoutItem.SectionHeader>()
-                    .filter { !it.visible && it.type != SectionType.BRIGHTNESS }
+                    .filter { !it.visible && it.type != SectionType.BRIGHTNESS && it.type != SectionType.MEDIA }
 
                 Column(
                     modifier = Modifier

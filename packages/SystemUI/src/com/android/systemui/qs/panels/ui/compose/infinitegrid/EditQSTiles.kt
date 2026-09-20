@@ -29,6 +29,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Arrangement.spacedBy
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -45,8 +46,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
@@ -74,6 +77,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -105,6 +109,7 @@ import androidx.compose.ui.text.style.Hyphens
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -112,6 +117,8 @@ import com.android.compose.theme.LocalAndroidColorScheme
 import com.android.compose.ui.graphics.painter.rememberDrawablePainter
 import com.android.systemui.common.shared.model.Icon
 import com.android.systemui.common.ui.compose.load
+import com.android.systemui.qs.panels.shared.model.QSControl
+import com.android.systemui.qs.panels.shared.model.QSControlSpan
 import com.android.systemui.qs.panels.ui.compose.FloatingTileDragState
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.InactiveCornerRadius
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.TileArrangementPadding
@@ -130,9 +137,13 @@ fun FullScreenTilePicker(
     insideSpecs: List<TileSpec>,
     onClose: () -> Unit,
     onTileClick: (EditTileViewModel) -> Unit,
+    controlPreview: @Composable (QSControl, QSControlSpan) -> Unit,
     onTileDragStart: (EditTileViewModel, Offset) -> Unit = { _, _ -> },
     onTileDrag: (Offset) -> Unit = {},
     onTileDragEnd: () -> Unit = {},
+    controls: List<QSControl> = QSControl.entries,
+    isControlAdded: (QSControl) -> Boolean = { false },
+    onControlDragStart: (QSControl, QSControlSpan, Offset, DpSize) -> Unit = { _, _, _, _ -> },
     columns: Int = 4,
     modifier: Modifier = Modifier,
 ) {
@@ -140,6 +151,12 @@ fun FullScreenTilePicker(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val surfaceEffect2 = LocalAndroidColorScheme.current.surfaceEffect2
+    val showHoldSnackbar: () -> Unit = {
+        coroutineScope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar("Hold on a tile to add it")
+        }
+    }
 
     var dragHasStarted by remember { mutableStateOf(false) }
     val isExternalDrag = FloatingTileDragState.isExternalDrag
@@ -295,6 +312,20 @@ fun FullScreenTilePicker(
                             .padding(horizontal = 16.dp),
                         verticalArrangement = spacedBy(8.dp)
                     ) {
+                        if (controls.isNotEmpty()) {
+                            ControlsSection(
+                                controls = controls,
+                                columns = columns,
+                                isLast = groupedTileSpecs.isEmpty(),
+                                controlPreview = controlPreview,
+                                isControlAdded = isControlAdded,
+                                onControlDragStart = onControlDragStart,
+                                onControlDrag = onTileDrag,
+                                onControlDragEnd = onTileDragEnd,
+                                onShowSnackbar = showHoldSnackbar,
+                            )
+                        }
+
                         groupedTileSpecs.entries.forEachIndexed { index, (category, tiles) ->
                             CategorySection(
                                 category = category,
@@ -305,14 +336,9 @@ fun FullScreenTilePicker(
                                 onTileDragStart = onTileDragStart,
                                 onTileDrag = onTileDrag,
                                 onTileDragEnd = onTileDragEnd,
-                                isFirst = index == 0,
+                                isFirst = index == 0 && controls.isEmpty(),
                                 isLast = index == groupedTileSpecs.size - 1,
-                                onShowSnackbar = {
-                                    coroutineScope.launch {
-                                        snackbarHostState.currentSnackbarData?.dismiss()
-                                        snackbarHostState.showSnackbar("Hold on a tile to add it")
-                                    }
-                                }
+                                onShowSnackbar = showHoldSnackbar
                             )
                         }
 
@@ -338,27 +364,8 @@ private fun CategorySection(
     isLast: Boolean,
     onShowSnackbar: () -> Unit,
 ) {
-    val shape = when {
-        isFirst && isLast -> RoundedCornerShape(TilePickerDefaults.GridBackgroundCornerRadius)
-        isFirst -> RoundedCornerShape(
-            topStart = TilePickerDefaults.GridBackgroundCornerRadius,
-            topEnd = TilePickerDefaults.GridBackgroundCornerRadius
-        )
-        isLast -> RoundedCornerShape(
-            bottomStart = TilePickerDefaults.GridBackgroundCornerRadius,
-            bottomEnd = TilePickerDefaults.GridBackgroundCornerRadius
-        )
-        else -> RectangleShape
-    }
-
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
-                shape = shape
-            )
-            .padding(16.dp),
+        modifier = Modifier.sectionBackground(isFirst, isLast),
         verticalArrangement = spacedBy(16.dp)
     ) {
         CategoryHeader(category)
@@ -401,24 +408,263 @@ private fun CategorySection(
     }
 }
 
+private fun sectionShape(isFirst: Boolean, isLast: Boolean) = when {
+    isFirst && isLast -> RoundedCornerShape(TilePickerDefaults.GridBackgroundCornerRadius)
+    isFirst -> RoundedCornerShape(
+        topStart = TilePickerDefaults.GridBackgroundCornerRadius,
+        topEnd = TilePickerDefaults.GridBackgroundCornerRadius
+    )
+    isLast -> RoundedCornerShape(
+        bottomStart = TilePickerDefaults.GridBackgroundCornerRadius,
+        bottomEnd = TilePickerDefaults.GridBackgroundCornerRadius
+    )
+    else -> RectangleShape
+}
+
+@Composable
+private fun Modifier.sectionBackground(isFirst: Boolean, isLast: Boolean): Modifier =
+    this
+        .fillMaxWidth()
+        .background(
+            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
+            shape = sectionShape(isFirst, isLast)
+        )
+        .padding(16.dp)
+
 @Composable
 private fun CategoryHeader(category: TileCategory, modifier: Modifier = Modifier) {
+    SectionHeader(
+        title = category.label.load() ?: "",
+        iconId = category.iconId,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun SectionHeader(title: String, iconId: Int, modifier: Modifier = Modifier) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = spacedBy(8.dp),
         modifier = modifier.fillMaxWidth()
     ) {
         Icon(
-            painter = painterResource(category.iconId),
+            painter = painterResource(iconId),
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.size(24.dp)
         )
         Text(
-            text = category.label.load() ?: "",
+            text = title,
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
+    }
+}
+
+private const val ControlPreviewScale = 0.82f
+
+private fun packControlRows(
+    items: List<Pair<QSControl, QSControlSpan>>,
+    columns: Int,
+): List<List<Pair<QSControl, QSControlSpan>>> = buildList {
+    var row = mutableListOf<Pair<QSControl, QSControlSpan>>()
+    var usedColumns = 0
+    items.forEach { item ->
+        val span = item.second
+        if (row.isNotEmpty() && usedColumns + span.columns > columns) {
+            add(row)
+            row = mutableListOf()
+            usedColumns = 0
+        }
+        row.add(item)
+        usedColumns += span.columns
+    }
+    if (row.isNotEmpty()) add(row)
+}
+
+@Composable
+private fun ControlsSection(
+    controls: List<QSControl>,
+    columns: Int,
+    isLast: Boolean,
+    controlPreview: @Composable (QSControl, QSControlSpan) -> Unit,
+    isControlAdded: (QSControl) -> Boolean,
+    onControlDragStart: (QSControl, QSControlSpan, Offset, DpSize) -> Unit,
+    onControlDrag: (Offset) -> Unit,
+    onControlDragEnd: () -> Unit,
+    onShowSnackbar: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.sectionBackground(isFirst = true, isLast = isLast),
+        verticalArrangement = spacedBy(16.dp)
+    ) {
+        SectionHeader(
+            title = "Controls",
+            iconId = TileCategory.UTILITIES.iconId,
+        )
+
+        val rows = packControlRows(
+            controls.map { c ->
+                val span = c.spans(columns).default
+                c to span.copy(columns = span.columns.coerceAtMost(columns))
+            },
+            columns,
+        )
+
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val cellWidth = (maxWidth - TileArrangementPadding * (columns - 1)) / columns
+
+            Column(verticalArrangement = spacedBy(TileArrangementPadding)) {
+                rows.forEach { row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.Top,
+                        horizontalArrangement = spacedBy(
+                            TileArrangementPadding,
+                            Alignment.CenterHorizontally
+                        ),
+                    ) {
+                        row.forEach { (control, span) ->
+                            ControlPickerCell(
+                                control = control,
+                                span = span,
+                                cellWidth = cellWidth,
+                                isAdded = isControlAdded(control),
+                                controlPreview = controlPreview,
+                                onDragStart = { pos, size ->
+                                    onControlDragStart(control, span, pos, size)
+                                },
+                                onDrag = onControlDrag,
+                                onDragEnd = onControlDragEnd,
+                                onShowSnackbar = onShowSnackbar,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ControlPickerCell(
+    control: QSControl,
+    span: QSControlSpan,
+    cellWidth: Dp,
+    isAdded: Boolean,
+    controlPreview: @Composable (QSControl, QSControlSpan) -> Unit,
+    onDragStart: (Offset, DpSize) -> Unit,
+    onDrag: (Offset) -> Unit,
+    onDragEnd: () -> Unit,
+    onShowSnackbar: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val label = control.label
+    val fullWidth = cellWidth * span.columns + TileArrangementPadding * (span.columns - 1)
+    val fullHeight = cellWidth * span.rows + TileArrangementPadding * (span.rows - 1)
+    val previewWidth = fullWidth * ControlPreviewScale
+    val previewHeight = fullHeight * ControlPreviewScale
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = spacedBy(8.dp, Alignment.Top),
+        modifier = modifier
+            .width(previewWidth)
+            .alpha(if (isAdded) 0.28f else 1f)
+            .semantics { contentDescription = label }
+    ) {
+        Box(modifier = Modifier.fillMaxWidth().height(previewHeight)) {
+            Box(Modifier.fillMaxSize().clearAndSetSemantics {}) {
+                Box(
+                    Modifier.requiredSize(fullWidth, fullHeight).graphicsLayer {
+                        scaleX = ControlPreviewScale
+                        scaleY = ControlPreviewScale
+                    }
+                ) {
+                    controlPreview(control, span)
+                }
+            }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .pickerGestures(
+                        enabled = !isAdded,
+                        onDragStart = { pos -> onDragStart(pos, DpSize(fullWidth, fullHeight)) },
+                        onDrag = onDrag,
+                        onDragEnd = onDragEnd,
+                        onTap = onShowSnackbar,
+                    )
+            )
+        }
+
+        Text(
+            text = label,
+            maxLines = 2,
+            color = TilePickerDefaults.editTileColors().label,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.labelMedium.copy(hyphens = Hyphens.Auto),
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun Modifier.pickerGestures(
+    enabled: Boolean,
+    onDragStart: (Offset) -> Unit,
+    onDrag: (Offset) -> Unit,
+    onDragEnd: () -> Unit,
+    onTap: () -> Unit,
+): Modifier {
+    val context = LocalContext.current
+    var coords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val currentOnDragStart by rememberUpdatedState(onDragStart)
+    val currentOnDrag by rememberUpdatedState(onDrag)
+    val currentOnDragEnd by rememberUpdatedState(onDragEnd)
+    val currentOnTap by rememberUpdatedState(onTap)
+
+    return this
+        .onGloballyPositioned { coords = it }
+        .pointerInput(enabled) {
+            if (enabled) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { offset ->
+                        val rootPos = coords?.positionInRoot() ?: Offset.Zero
+                        currentOnDragStart(rootPos + offset)
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        currentOnDrag(dragAmount)
+                    },
+                    onDragEnd = { currentOnDragEnd() },
+                    onDragCancel = { currentOnDragEnd() }
+                )
+            }
+        }
+        .pointerInput(enabled) {
+            if (enabled) {
+                detectTapGestures(
+                    onTap = {
+                        vibrateTap(context)
+                        currentOnTap()
+                    }
+                )
+            }
+        }
+}
+
+private fun vibrateTap(context: android.content.Context) {
+    val vibrator = context.getSystemService(android.os.Vibrator::class.java)
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        vibrator?.vibrate(
+            android.os.VibrationEffect.createOneShot(
+                40L, android.os.VibrationEffect.DEFAULT_AMPLITUDE
+            )
+        )
+    } else {
+        @Suppress("DEPRECATION")
+        vibrator?.vibrate(40L)
     }
 }
 
@@ -435,7 +681,6 @@ private fun TilePickerCell(
 ) {
     val isCurrent = tile.isCurrent || insideSpecs.contains(tile.tileSpec)
     val context = LocalContext.current
-    var cellCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -443,44 +688,13 @@ private fun TilePickerCell(
         modifier = modifier
             .alpha(if (isCurrent) 0.28f else 1f)
             .semantics { contentDescription = tile.label.text }
-            .onGloballyPositioned { cellCoords = it }
-            .pointerInput(isCurrent) {
-                if (!isCurrent) {
-                    detectDragGesturesAfterLongPress(
-                        onDragStart = { offset ->
-                            val rootPos = cellCoords?.positionInRoot() ?: Offset.Zero
-                            val globalPos = rootPos + offset
-                            onTileDragStart(tile, globalPos)
-                        },
-                        onDrag = { change, dragAmount ->
-                            change.consume()
-                            onTileDrag(dragAmount)
-                        },
-                        onDragEnd = { onTileDragEnd() },
-                        onDragCancel = { onTileDragEnd() }
-                    )
-                }
-            }
-            .pointerInput(isCurrent) {
-                if (!isCurrent) {
-                    detectTapGestures(
-                        onTap = {
-                            val vibrator = context.getSystemService(android.os.Vibrator::class.java)
-                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                                vibrator?.vibrate(
-                                    android.os.VibrationEffect.createOneShot(
-                                        40L, android.os.VibrationEffect.DEFAULT_AMPLITUDE
-                                    )
-                                )
-                            } else {
-                                @Suppress("DEPRECATION")
-                                vibrator?.vibrate(40L)
-                            }
-                            onShowSnackbar()
-                        }
-                    )
-                }
-            }
+            .pickerGestures(
+                enabled = !isCurrent,
+                onDragStart = { pos -> onTileDragStart(tile, pos) },
+                onDrag = onTileDrag,
+                onDragEnd = onTileDragEnd,
+                onTap = onShowSnackbar,
+            )
     ) {
         Box(
             modifier = Modifier
