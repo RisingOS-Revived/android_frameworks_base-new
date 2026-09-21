@@ -211,7 +211,7 @@ constructor(
         val isSplitShade =
             if (SceneContainerFlag.isEnabled) shadeModeInteractor.isSplitShade
             else splitShadeStateController.shouldUseSplitNotificationShade(resources)
-        val isMediaShowingInStack = isMediaShowing && !isSplitShade
+        val isMediaShowingInStack = isMediaShowing && !stack.isMotoCompactPreviewVisible && !isSplitShade
 
         log { "\tGet maxNotifWithoutSavingSpace ---" }
         val maxNotifWithoutSavingSpace =
