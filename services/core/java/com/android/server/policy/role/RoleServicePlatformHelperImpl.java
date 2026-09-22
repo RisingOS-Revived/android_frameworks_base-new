@@ -290,8 +290,10 @@ public class RoleServicePlatformHelperImpl implements RoleServicePlatformHelper 
     }
     
     private String maybeOverrideDefaultHome(String packageName) {
-        String selected = QuickSwitchService.getSelectedLauncherPackage();
-        return selected != null ? selected : packageName;
+        if (packageName != null) {
+            return packageName;
+        }
+        return QuickSwitchService.getSelectedLauncherPackage();
     }
 
     private boolean isSettingsApplication(@NonNull String packageName, @UserIdInt int userId) {
