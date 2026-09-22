@@ -16,6 +16,8 @@
 
 package org.rising.server;
 
+import android.annotation.NonNull;
+import android.app.role.RoleManager;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -28,11 +30,13 @@ import android.content.pm.PackageInfoList;
 import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
 import android.content.res.Resources;
+import android.os.Binder;
 import android.os.Handler;
 import android.os.IUserManager;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
+import android.os.UserHandle;
 import android.util.Slog;
 
 import com.android.server.ServiceThread;
@@ -67,6 +71,7 @@ public final class QuickSwitchService extends SystemService {
     private static List<String> sLauncherPackages = Collections.emptyList();
     private static List<String> sDisabledLaunchersCache = null;
     private static int sLastDefaultLauncher = -1;
+    private static volatile Context sSystemContext;
 
     public QuickSwitchService(Context context) {
         super(context);
@@ -75,6 +80,7 @@ public final class QuickSwitchService extends SystemService {
         mPM = IPackageManager.Stub.asInterface(ServiceManager.getService("package"));
         mUM = IUserManager.Stub.asInterface(ServiceManager.getService(Context.USER_SERVICE));
         mOpPackageName = context.getOpPackageName();
+        sSystemContext = context;
         ensureLauncherPackages();
     }
 
@@ -106,8 +112,18 @@ public final class QuickSwitchService extends SystemService {
         }
     }
 
+    @android.annotation.Nullable
     public static String getSelectedLauncherPackage() {
         ensureLauncherPackages();
+
+        RoleQueryResult result = queryCurrentHomeRoleHolder(UserHandle.myUserId());
+        if (result.packageName != null) {
+            return result.packageName;
+        }
+        if (result.queryFailed) {
+            return null;
+        }
+
         int defaultLauncher = getDefaultLauncherIndex();
         synchronized (sLock) {
             if (defaultLauncher >= 0 && defaultLauncher < sLauncherPackages.size()) {
@@ -117,8 +133,83 @@ public final class QuickSwitchService extends SystemService {
         }
     }
 
+    public static boolean managesPackage(String packageName) {
+        ensureLauncherPackages();
+        synchronized (sLock) {
+            return sLauncherPackages.contains(packageName);
+        }
+    }
+
+    @NonNull
+    private static RoleQueryResult queryCurrentHomeRoleHolder(int userId) {
+        Context context = sSystemContext;
+        if (context == null || userId < 0) {
+            return RoleQueryResult.failed();
+        }
+        final long token = Binder.clearCallingIdentity();
+        try {
+            RoleManager roleManager = context.getSystemService(RoleManager.class);
+            if (roleManager == null) {
+                return RoleQueryResult.failed();
+            }
+            List<String> holders = roleManager.getRoleHoldersAsUser(
+                    RoleManager.ROLE_HOME, UserHandle.of(userId));
+            if (holders == null) {
+                return RoleQueryResult.failed();
+            }
+            if (!holders.isEmpty()) {
+                return RoleQueryResult.holder(holders.get(0));
+            }
+            return RoleQueryResult.noHolder();
+        } catch (Exception e) {
+            Slog.w(TAG, "Failed to query current HOME role holder for user " + userId, e);
+            return RoleQueryResult.failed();
+        } finally {
+            Binder.restoreCallingIdentity(token);
+        }
+    }
+
+    @android.annotation.Nullable
+    private static String getCurrentHomeRoleHolder(int userId) {
+        RoleQueryResult result = queryCurrentHomeRoleHolder(userId);
+        return result.packageName;
+    }
+
+    @android.annotation.Nullable
+    private static String getCurrentHomeRoleHolder() {
+        return getCurrentHomeRoleHolder(UserHandle.myUserId());
+    }
+
+    private static final class RoleQueryResult {
+        @android.annotation.Nullable final String packageName;
+        final boolean queryFailed;
+
+        private RoleQueryResult(@android.annotation.Nullable String packageName, boolean queryFailed) {
+            this.packageName = packageName;
+            this.queryFailed = queryFailed;
+        }
+
+        static RoleQueryResult holder(String pkg) {
+            return new RoleQueryResult(pkg, false);
+        }
+
+        static RoleQueryResult noHolder() {
+            return new RoleQueryResult(null, false);
+        }
+
+        static RoleQueryResult failed() {
+            return new RoleQueryResult(null, true);
+        }
+    }
+
     public static boolean shouldHide(int userId, String packageName) {
-        return packageName != null && getDisabledDefaultLaunchers().contains(packageName);
+        if (packageName == null) {
+            return false;
+        }
+        if (packageName.equals(getCurrentHomeRoleHolder(userId))) {
+            return false;
+        }
+        return getDisabledDefaultLaunchers().contains(packageName);
     }
 
     public static PackageInfoList recreatePackageList(
@@ -178,6 +269,14 @@ public final class QuickSwitchService extends SystemService {
 
     private void updateStateForUser(int userId) {
         ensureLauncherPackages();
+
+        String roleHolder = getCurrentHomeRoleHolder(userId);
+        if (roleHolder != null && !managesPackage(roleHolder)) {
+            Slog.i(TAG, "HOME role held by unmanaged launcher " + roleHolder
+                    + "; leaving launcher enabled-state untouched for user " + userId);
+            return;
+        }
+
         int defaultLauncher = getDefaultLauncherIndex();
         String selected;
         List<String> packages;
