@@ -657,27 +657,7 @@ private fun AnimatedContentInOverlay(
                         scale(scale) { this@drawWithContent.drawContent() }
                     }
 
-            val composeView =
-                ComposeView(context).apply {
-                    setContent {
-                        Box(
-                            Modifier.fillMaxSize().drawWithContent {
-                                val animatorState =
-                                    controller.animatorState ?: return@drawWithContent
-                                if (!animatorState.visible) {
-                                    return@drawWithContent
-                                }
-
-                                drawBackground(animatorState, color(), controller.borderStroke)
-                                drawContent()
-                            },
-                            // We center the content in the expanding container.
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Box(contentModifier) { content(expandable) }
-                        }
-                    }
-                }
+            val composeView = ComposeView(context)
 
             // Set the owners.
             val overlayViewGroup = getOverlayViewGroup(context, overlay)
@@ -692,22 +672,52 @@ private fun AnimatedContentInOverlay(
 
             composeView.setParentCompositionContext(compositionContext)
 
+            composeView.setContent {
+                Box(
+                    Modifier.fillMaxSize().drawWithContent {
+                        val animatorState = controller.animatorState ?: return@drawWithContent
+                        if (!animatorState.visible) {
+                            return@drawWithContent
+                        }
+
+                        drawBackground(animatorState, color(), controller.borderStroke)
+                        drawContent()
+                    },
+                    // We center the content in the expanding container.
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(contentModifier) { content(expandable) }
+                }
+            }
+
             composeView
         }
 
     DisposableEffect(overlay, composeViewInOverlay) {
+        composeViewInOverlay.visibility = View.INVISIBLE
+
         // Add the ComposeView to the overlay.
         overlay.add(composeViewInOverlay)
 
-        val startState =
-            controller.animatorState
-                ?: throw IllegalStateException(
-                    "AnimatedContentInOverlay shouldn't be composed with null animatorState."
-                )
-        measureAndLayoutComposeViewInOverlay(composeViewInOverlay, startState)
+        if (controller.animatorState == null) {
+            throw IllegalStateException(
+                "AnimatedContentInOverlay shouldn't be composed with null animatorState."
+            )
+        }
+
+        val layoutRunnable = Runnable {
+            val state = controller.animatorState
+            if (state != null && composeViewInOverlay.parent != null) {
+                measureAndLayoutComposeViewInOverlay(composeViewInOverlay, state)
+            }
+            composeViewInOverlay.visibility = View.VISIBLE
+        }
+        composeViewInOverlay.postOnAnimation(layoutRunnable)
+
         onOverlayComposeViewChanged(composeViewInOverlay)
 
         onDispose {
+            composeViewInOverlay.removeCallbacks(layoutRunnable)
             composeViewInOverlay.disposeComposition()
             overlay.remove(composeViewInOverlay)
             onOverlayComposeViewChanged(null)
