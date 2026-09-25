@@ -325,4 +325,8 @@
     <!-- Now Playing -->
     <item type="id" name="now_playing_view" />
 
+    <!-- Google smartspace view IDs (view doesn't exist on non-GMS builds) -->
+    <item type="id" name="bc_smartspace_view" />
+    <item type="id" name="smartspace_card_pager" />
+    <item type="id" name="smartspace_page_indicator" />
 </resources>
