@@ -292,6 +292,7 @@ import kotlin.math.roundToInt
 import kotlin.math.abs
 
 import lineageos.providers.LineageSettings
+import com.android.systemui.qs.panels.ui.compose.EditPanelModeTabRow
 
 object MiniPlayerElementKey {
     val MiniPlayer = ElementKey("MiniPlayer")
@@ -445,6 +446,11 @@ constructor(
         val oneUiTileStore = rememberOneUiTileStore()
         val insideTiles by oneUiTileStore.insideTiles.collectAsStateWithLifecycle()
 
+        var editingQqsMode by rememberSaveable { mutableStateOf(false) }
+
+        val qqsSpecs by viewModel.qqsTilesInteractor.qqsTiles
+            .collectAsStateWithLifecycle<List<TileSpec>?>(initialValue = null)
+
         val insideAllTilesMap by remember(viewModel.containerViewModel.tileGridViewModel.tiles) {
             viewModel.containerViewModel.tileGridViewModel.tiles.map { list ->
                 list.associate { it.spec to it.tile }
@@ -489,10 +495,11 @@ constructor(
 
         var lastPushedSpecs by remember { mutableStateOf<Set<TileSpec>>(emptySet()) }
 
-        LaunchedEffect(flatLayout, insideTiles, hasLoadedLayout) {
-            if (hasLoadedLayout) {
+        LaunchedEffect(flatLayout, insideTiles, qqsSpecs, hasLoadedLayout) {
+            val qqs = qqsSpecs
+            if (hasLoadedLayout && qqs != null) {
                 val flatSpecs = flatLayout.filterIsInstance<QSLayoutItem.TileItem>().map { it.spec }
-                val activeSpecs = (flatSpecs + insideTiles).distinct()
+                val activeSpecs = (flatSpecs + insideTiles + qqs).distinct()
                 lastPushedSpecs = activeSpecs.toSet()
                 viewModel.containerViewModel.editModeViewModel.setTiles(activeSpecs)
             }
@@ -500,10 +507,11 @@ constructor(
 
         val backendTiles by viewModel.containerViewModel.tileGridViewModel.tiles.collectAsStateWithLifecycle(emptyList())
 
-        LaunchedEffect(backendTiles, hasLoadedLayout) {
-            if (hasLoadedLayout) {
+        LaunchedEffect(backendTiles, qqsSpecs, hasLoadedLayout) {
+            val qqs = qqsSpecs
+            if (hasLoadedLayout && qqs != null) {
                 val flatSpecs = flatLayout.filterIsInstance<QSLayoutItem.TileItem>().map { it.spec }
-                val allFrontendSpecs = (flatSpecs + insideTiles).toSet()
+                val allFrontendSpecs = (flatSpecs + insideTiles + qqs).toSet()
                 val backendSpecs = backendTiles.map { it.spec }
                 
                 val missingSpecs = backendSpecs.filter { it !in allFrontendSpecs && it !in lastPushedSpecs }
@@ -600,79 +608,132 @@ constructor(
                             val density = LocalDensity.current
                             val controlRenderer = LocalQSControlRenderer.current
 
-                            FullScreenTilePicker(
-                                allTiles = availableTiles,
-                                insideSpecs = insideTiles,
-                                onClose = {
-                                    viewModel.closeTilePicker()
-                                },
-                                onTileClick = { tile ->
-                                    com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.fallbackTiles[tile.tileSpec] = tile
-                                    val spanCols = if (tile.tileSpec.spec == "brightness") 3 else 1
-                                    viewModel.sectionEditModeViewModel.addMainQSTile(
-                                        FloatingTile(tile.tileSpec, SectionType.TILES, spanCols, 1)
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                if (editingQqsMode) {
+                                    com.android.systemui.qs.panels.ui.compose.infinitegrid.QqsEditGrid(
+                                        modifier = Modifier.fillMaxSize(),
+                                        allTiles = availableTiles,
+                                        qqsColumns = viewModel.quickQuickSettingsViewModel.columns,
+                                        qqsTilesInteractor = viewModel.qqsTilesInteractor,
+                                        ensureCurrent = { spec ->
+                                            if (!availableTiles.any { it.tileSpec == spec && it.isCurrent }) {
+                                                viewModel.containerViewModel.editModeViewModel.addTile(spec)
+                                            }
+                                        },
+                                        releaseIfUnused = { spec ->
+                                            val stillInMainQs =
+                                                insideTiles.contains(spec) ||
+                                                    flatLayout.any {
+                                                        it is QSLayoutItem.TileItem && it.spec == spec
+                                                    }
+                                            if (!stillInMainQs) {
+                                                viewModel.containerViewModel.editModeViewModel.removeTile(spec)
+                                            }
+                                        },
+                                        onStopEditing = { viewModel.closeTilePicker() },
                                     )
-                                    viewModel.containerViewModel.editModeViewModel.addTile(tile.tileSpec)
-                                    viewModel.closeTilePicker()
-                                },
-                                controlPreview = { control, span ->
-                                    if (controlRenderer != null) {
-                                        controlRenderer.content(control, span, false)
-                                    }
-                                },
-                                isControlAdded = { control ->
-                                    flatLayout.any { it is QSLayoutItem.TileItem && it.spec.spec == control.id }
-                                },
-                                onControlDragStart = { control, span, position, size ->
-                                    if (!viewModel.wasEditingBeforePicker) {
-                                        viewModel.containerViewModel.editModeViewModel.stopEditing()
-                                    }
-                                    viewModel.sectionEditModeViewModel.startEditingSections()
+                                } else {
+                                    FullScreenTilePicker(
+                                        modifier = Modifier.fillMaxSize(),
+                                        allTiles = availableTiles,
+                                        insideSpecs = insideTiles,
+                                        onClose = {
+                                            viewModel.closeTilePicker()
+                                        },
+                                        onTileClick = { tile ->
+                                            com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.fallbackTiles[tile.tileSpec] = tile
+                                            val spanCols = if (tile.tileSpec.spec == "brightness") 3 else 1
+                                            viewModel.sectionEditModeViewModel.addMainQSTile(
+                                                FloatingTile(tile.tileSpec, SectionType.TILES, spanCols, 1)
+                                            )
+                                            viewModel.containerViewModel.editModeViewModel.addTile(tile.tileSpec)
+                                            viewModel.closeTilePicker()
+                                        },
+                                        controlPreview = { control, span ->
+                                            if (controlRenderer != null) {
+                                                controlRenderer.content(control, span, false)
+                                            }
+                                        },
+                                        controls = QSControl.entries,
+                                        isControlAdded = { control ->
+                                            flatLayout.any { it is QSLayoutItem.TileItem && it.spec.spec == control.id }
+                                        },
+                                        onControlDragStart = { control, span, position, size ->
+                                            if (!viewModel.wasEditingBeforePicker) {
+                                                viewModel.containerViewModel.editModeViewModel.stopEditing()
+                                            }
+                                            viewModel.sectionEditModeViewModel.startEditingSections()
 
-                                    val half = with(density) {
-                                        Offset(size.width.toPx() / 2, size.height.toPx() / 2)
-                                    }
-                                    com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.startDrag(
-                                        tile = FloatingTile(
-                                            TileSpec.create(control.id),
-                                            SectionType.TILES,
-                                            span.columns,
-                                            span.rows,
-                                        ),
-                                        position = position - half,
-                                        size = size,
-                                        sourceSection = SectionType.TILES,
+                                            val half = with(density) {
+                                                Offset(size.width.toPx() / 2, size.height.toPx() / 2)
+                                            }
+                                            com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.startDrag(
+                                                tile = FloatingTile(
+                                                    TileSpec.create(control.id),
+                                                    SectionType.TILES,
+                                                    span.columns,
+                                                    span.rows,
+                                                ),
+                                                position = position - half,
+                                                size = size,
+                                                sourceSection = SectionType.TILES,
+                                            )
+                                            com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.isExternalDrag = true
+                                        },
+                                        onTileDragStart = { tile, position ->
+                                            if (!viewModel.wasEditingBeforePicker) {
+                                                viewModel.containerViewModel.editModeViewModel.stopEditing()
+                                            }
+                                            viewModel.sectionEditModeViewModel.startEditingSections()
+
+                                            val isBrightness = tile.tileSpec.spec == "brightness"
+                                            val spanCols = if (isBrightness) 3 else 1
+
+                                            val defaultSize = if (isBrightness) DpSize(264.dp, 88.dp) else DpSize(88.dp, 88.dp)
+                                            val offsetPx = with(density) { 44.dp.toPx() }
+                                            com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.startDrag(
+                                                tile = FloatingTile(tile.tileSpec, SectionType.TILES, spanCols, 1),
+                                                position = position - Offset(offsetPx, offsetPx),
+                                                size = defaultSize,
+                                                sourceSection = SectionType.TILES,
+                                                editTile = tile
+                                            )
+                                            com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.isExternalDrag = true
+                                        },
+                                        onTileDrag = { dragAmount ->
+                                            com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.updateDrag(dragAmount)
+                                        },
+                                        onTileDragEnd = {
+                                            com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.dropRequested = true
+                                            viewModel.closeTilePicker(stayInLayoutEditMode = true)
+                                        }
                                     )
-                                    com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.isExternalDrag = true
-                                },
-                                onTileDragStart = { tile, position ->
-                                    if (!viewModel.wasEditingBeforePicker) {
-                                        viewModel.containerViewModel.editModeViewModel.stopEditing()
-                                    }
-                                    viewModel.sectionEditModeViewModel.startEditingSections()
-                                    
-                                    val isBrightness = tile.tileSpec.spec == "brightness"
-                                    val spanCols = if (isBrightness) 3 else 1
-                                    
-                                    val defaultSize = if (isBrightness) DpSize(264.dp, 88.dp) else DpSize(88.dp, 88.dp) 
-                                    val offsetPx = with(density) { 44.dp.toPx() }
-                                    com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.startDrag(
-                                        tile = FloatingTile(tile.tileSpec, SectionType.TILES, spanCols, 1),
-                                        position = position - Offset(offsetPx, offsetPx),
-                                        size = defaultSize,
-                                        sourceSection = SectionType.TILES,
-                                        editTile = tile 
-                                    )
-                                    com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.isExternalDrag = true
-                                },
-                                onTileDrag = { dragAmount ->
-                                    com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.updateDrag(dragAmount)
-                                },
-                                onTileDragEnd = {
-                                    com.android.systemui.qs.panels.ui.compose.FloatingTileDragState.dropRequested = true
-                                    viewModel.closeTilePicker(stayInLayoutEditMode = true)
                                 }
-                            )
+
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    shadowElevation = 4.dp,
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .navigationBarsPadding()
+                                        .padding(bottom = 32.dp)
+                                        .height(56.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        EditPanelModeTabRow(
+                                            editingQqs = editingQqsMode,
+                                            onEditQqs = { editingQqsMode = true },
+                                            onEditQs = { editingQqsMode = false },
+                                            qqsLabel = stringResource(R.string.qs_edit_mode_qqs),
+                                            qsLabel = stringResource(R.string.qs_edit_mode_qs),
+                                        )
+                                    }
+                                }
+                            }
                         }
                         
                         AnimatedVisibility(

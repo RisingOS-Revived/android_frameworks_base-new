@@ -16,6 +16,7 @@
 
 package com.android.systemui.qs.panels.ui.compose
 
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
@@ -28,6 +29,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastMap
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -35,6 +37,8 @@ import com.android.compose.animation.scene.ContentScope
 import com.android.systemui.compose.modifiers.sysuiResTag
 import com.android.systemui.grid.ui.compose.CustomVerticalSpannedGrid
 import com.android.systemui.qs.composefragment.ui.GridAnchor
+import com.android.systemui.qs.panels.ui.compose.infinitegrid.QQS_EDIT_GRID_COLUMNS
+import com.android.systemui.qs.panels.ui.compose.infinitegrid.QQS_EDIT_GRID_MAX_TILES
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.Tile
 import com.android.systemui.qs.panels.ui.viewmodel.BounceableTileViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.QuickQuickSettingsViewModel
@@ -51,10 +55,13 @@ fun ContentScope.QuickQuickSettings(
     val squishiness by viewModel.squishinessViewModel.squishiness.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
-    val qqsTiles = remember(sizedTiles) { sizedTiles.take(5) }
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val maxTiles = if (isLandscape) QQS_EDIT_GRID_COLUMNS else QQS_EDIT_GRID_MAX_TILES
+
+    val qqsTiles = remember(sizedTiles, maxTiles) { sizedTiles.take(maxTiles) }
     val spans by remember(qqsTiles) { derivedStateOf { List(qqsTiles.size) { 1 } } }
 
-    val qqsColumns = 5
+    val qqsColumns = QQS_EDIT_GRID_COLUMNS
 
     Box(modifier = modifier) {
         GridAnchor()
