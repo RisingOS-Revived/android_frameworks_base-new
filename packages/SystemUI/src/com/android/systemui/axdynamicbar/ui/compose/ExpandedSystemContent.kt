@@ -6,12 +6,18 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Bluetooth
@@ -26,9 +32,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.android.systemui.axdynamicbar.shared.IslandActions
@@ -75,21 +86,42 @@ internal fun ChargingExpanded(event: IslandEvent.Charging) {
 
 @Composable
 internal fun BluetoothExpanded(event: IslandEvent.Bluetooth, interactor: IslandActions) {
+    val artwork = event.deviceImage
+    val earbuds =
+        listOfNotNull(
+            event.leftBatteryLevel?.let {
+                BudBattery(R.string.ax_dynamic_bar_left_earbud, it, mirror = false)
+            },
+            event.rightBatteryLevel?.let {
+                BudBattery(R.string.ax_dynamic_bar_right_earbud, it, mirror = true)
+            },
+        )
+    val showSingleBattery = earbuds.isEmpty() && event.caseBatteryLevel == null
     ExpandedCardLayout(
         accentColor = IslandTone.ACCENT.tint,
         icon = {
-            event.deviceIcon?.let {
+            val image = artwork ?: event.deviceIcon
+            if (image != null) {
                 Image(
-                    bitmap = it.toScaledBitmap(20.dp),
-                    contentDescription = event.deviceTypeLabel.ifEmpty {
-                        stringResource(R.string.ax_dynamic_bar_bluetooth_device)
-                    },
+                    bitmap = image.toScaledBitmap(20.dp),
+                    contentDescription =
+                        event.deviceTypeLabel.ifEmpty {
+                            stringResource(R.string.ax_dynamic_bar_bluetooth_device)
+                        },
                     modifier = Modifier.size(20.dp),
                 )
-            } ?: Icon(Icons.Filled.Bluetooth, null, tint = IslandTone.ACCENT.tint, modifier = Modifier.size(16.dp))
+            } else {
+                Icon(Icons.Filled.Bluetooth, null, tint = IslandTone.ACCENT.tint, modifier = Modifier.size(16.dp))
+            }
         },
         title = {
-            Text(event.deviceName, color = OnCardText, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                event.deviceName,
+                color = OnCardText,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(SpaceMd),
@@ -99,11 +131,37 @@ internal fun BluetoothExpanded(event: IslandEvent.Bluetooth, interactor: IslandA
                     IslandTone.ACCENT.tint,
                 )
                 // The battery joins the caption line as text rather than a second chip.
-                if (event.batteryLevel >= 0) {
+                if (showSingleBattery && event.batteryLevel >= 0) {
                     Text(
                         "${event.batteryLevel}%",
                         color = if (event.batteryLevel > 20) IslandTone.POSITIVE.tint else IslandTone.ALERT.tint,
                         style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+            }
+            event.caseBatteryLevel?.let { level ->
+                Row(
+                    modifier = Modifier.semantics(mergeDescendants = true) {},
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.dynamic_island_earbuds_case),
+                        contentDescription = null,
+                        tint = SubtleGray,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        stringResource(R.string.ax_dynamic_bar_earbuds_case),
+                        color = SubtleGray,
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                    )
+                    Text(
+                        "$level%",
+                        color = if (level > 20) IslandTone.POSITIVE.tint else IslandTone.ALERT.tint,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
                     )
                 }
             }
@@ -123,7 +181,59 @@ internal fun BluetoothExpanded(event: IslandEvent.Bluetooth, interactor: IslandA
                 )
             }
         },
+        actions = {
+            if (earbuds.isNotEmpty()) BluetoothEarbudBatteries(earbuds)
+        },
     )
+}
+
+private data class BudBattery(val labelRes: Int, val level: Int, val mirror: Boolean)
+
+@Composable
+private fun BluetoothEarbudBatteries(batteries: List<BudBattery>) {
+    Row(
+        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        batteries.forEach { battery ->
+            Row(
+                modifier =
+                    Modifier.weight(1f)
+                        .heightIn(min = 56.dp)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(IslandTone.ACCENT.tint.copy(alpha = 0.08f))
+                        .semantics(mergeDescendants = true) {}
+                        .padding(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.dynamic_island_earbud),
+                    contentDescription = null,
+                    tint = OnCardText.copy(alpha = 0.85f),
+                    modifier =
+                        Modifier.size(24.dp).graphicsLayer { scaleX = if (battery.mirror) -1f else 1f },
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(battery.labelRes),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = SubtleGray,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = "${battery.level}%",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (battery.level > 20) IslandTone.POSITIVE.tint else IslandTone.ALERT.tint,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
