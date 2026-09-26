@@ -59,6 +59,8 @@ import com.android.systemui.qs.QSEvent
 import com.android.systemui.qs.composefragment.dagger.QSFragmentComposeLog
 import com.android.systemui.qs.composefragment.dagger.QSFragmentComposeModule
 import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsViewModel
+import com.android.systemui.qs.panels.domain.interactor.QqsTilesInteractor
+import com.android.systemui.qs.panels.ui.viewmodel.InfiniteGridSnapshotViewModel
 import com.android.systemui.qs.panels.domain.interactor.TileSquishinessInteractor
 import com.android.systemui.qs.panels.ui.viewmodel.InFirstPageViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.SectionEditModeViewModel
@@ -131,6 +133,8 @@ constructor(
     val mediaViewModelFactory: MediaViewModel.Factory,
     shadeStatusBarComponentsInteractor: ShadeStatusBarComponentsInteractor,
     val sectionEditModeViewModel: SectionEditModeViewModel,
+    val qqsTilesInteractor: QqsTilesInteractor,
+    val infiniteGridSnapshotViewModelFactory: InfiniteGridSnapshotViewModel.Factory,
 ) : Dumpable, ExclusiveActivatable() {
 
     val containerViewModel = containerViewModelFactory.create(supportsBrightnessMirroring = true)
