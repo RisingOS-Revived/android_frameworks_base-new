@@ -46,6 +46,7 @@ public class KeyguardSecurityModel {
         Pattern, // Unlock by drawing a pattern.
         Password, // Unlock by entering an alphanumeric password
         PIN, // Strictly numeric password
+        KnockCode, // Unlock by tapping a sequence on a grid; verified as the user's PIN
         SimPin, // Unlock by entering a sim pin.
         SimPuk, // Unlock by entering a sim puk
         // TODO(b/427071498): remove upon SceneContainerFlag removal
@@ -126,6 +127,12 @@ public class KeyguardSecurityModel {
 
         final int credentialType = whitelistIpcs(() ->
                 mLockPatternUtils.getCredentialTypeForUser(userId));
+
+        if (credentialType == LockPatternUtils.CREDENTIAL_TYPE_PIN
+                && whitelistIpcs(() -> mLockPatternUtils.isKnockCodeEnabled(userId))) {
+            return SecurityMode.KnockCode;
+        }
+
         switch (credentialType) {
             case LockPatternUtils.CREDENTIAL_TYPE_PIN:
                 return SecurityMode.PIN;

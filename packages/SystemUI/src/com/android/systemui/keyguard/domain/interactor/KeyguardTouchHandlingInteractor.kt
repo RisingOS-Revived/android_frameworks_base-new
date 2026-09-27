@@ -293,6 +293,10 @@ constructor(
 
     /** Notifies that the lockscreen has been double clicked. */
     fun onDoubleClick() {
+        if (statusBarKeyguardViewManager.isBouncerShowing()) {
+            Log.d(TAG, "ignoring double tap: bouncer is showing")
+            return
+        }
         if (isDoubleTapHandlingEnabled.value) {
             Log.d(TAG, "going to sleep due to double tap")
             powerManager.goToSleep(systemClock.uptimeMillis())

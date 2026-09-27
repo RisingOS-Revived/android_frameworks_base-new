@@ -183,6 +183,7 @@ public class KeyguardSecurityViewFlipperController
                     R.layout.keyguard_secure_lock_device_biometric_auth_view;
             case Pattern -> R.layout.keyguard_pattern_motion_layout;
             case PIN -> R.layout.keyguard_pin_motion_layout;
+            case KnockCode -> R.layout.keyguard_knock_code_view;
             case Password -> R.layout.keyguard_password_motion_layout;
             case SimPin -> R.layout.keyguard_sim_pin_view;
             case SimPuk -> R.layout.keyguard_sim_puk_view;
@@ -196,6 +197,7 @@ public class KeyguardSecurityViewFlipperController
                     R.layout.keyguard_secure_lock_device_biometric_auth_view;
             case Pattern -> R.layout.keyguard_pattern_view;
             case PIN -> R.layout.keyguard_pin_view;
+            case KnockCode -> R.layout.keyguard_knock_code_view;
             case Password -> R.layout.keyguard_password_view;
             case SimPin -> R.layout.keyguard_sim_pin_view;
             case SimPuk -> R.layout.keyguard_sim_puk_view;

@@ -635,6 +635,7 @@ private fun SecurityMode.toAuthModel(): AuthenticationMethodModel {
         SecurityMode.Pattern -> AuthenticationMethodModel.Pattern
         SecurityMode.Password -> AuthenticationMethodModel.Password
         SecurityMode.PIN -> AuthenticationMethodModel.Pin
+        SecurityMode.KnockCode -> AuthenticationMethodModel.Pin
         SecurityMode.SimPin -> AuthenticationMethodModel.Sim
         SecurityMode.SimPuk -> AuthenticationMethodModel.Sim
         SecurityMode.SecureLockDeviceBiometricAuth -> AuthenticationMethodModel.Biometric

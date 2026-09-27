@@ -807,6 +807,10 @@ public class LockPatternUtils {
         } catch (RemoteException e) {
             throw new RuntimeException("Unable to save lock password", e);
         }
+
+        // Knock Code
+        setKnockCodeEnabled(false, userHandle);
+
         return true;
     }
 
@@ -1099,6 +1103,104 @@ public class LockPatternUtils {
 
     public boolean isVisibleDotsEnabled(int userId) {
         return getBoolean(Settings.Secure.LOCK_DOTS_VISIBLE, true, userId);
+    }
+
+    /**
+     * Settings keys for Knock Code.
+     */
+    public static final String KNOCK_CODE_ENABLED = "knock_code_enabled";
+    public static final String KNOCK_CODE_LENGTH = "knock_code_length";
+    public static final String KNOCK_CODE_GRID_SIZE = "knock_code_grid_size";
+
+    /**
+     * Bounds on the number of taps in a Knock Code.
+     */
+    public static final int KNOCK_CODE_LENGTH_MIN = 4;
+    public static final int KNOCK_CODE_LENGTH_MAX = 8;
+    public static final int KNOCK_CODE_LENGTH_DEFAULT = 6;
+
+    /**
+     * Bounds on the side of the square grid a Knock Code is tapped on.
+     */
+    public static final int KNOCK_CODE_GRID_SIZE_MIN = 2;
+    public static final int KNOCK_CODE_GRID_SIZE_MAX = 4;
+    public static final int KNOCK_CODE_GRID_SIZE_DEFAULT = 2;
+
+    /**
+     * Whether this user unlocks with a Knock Code rather than typing their PIN on the number pad.
+     */
+    public void setKnockCodeEnabled(boolean enabled, int userId) {
+        setBoolean(KNOCK_CODE_ENABLED, enabled, userId);
+    }
+
+    public boolean isKnockCodeEnabled(int userId) {
+        return getBoolean(KNOCK_CODE_ENABLED, false, userId);
+    }
+
+    /**
+     * Records how many taps complete this user's Knock Code.
+     */
+    public void setKnockCodeLength(int length, int userId) {
+        setLong(KNOCK_CODE_LENGTH, length, userId);
+    }
+
+    /** Returns the enrolled knock length, falling back to the default if it is unset or invalid. */
+    public int getKnockCodeLength(int userId) {
+        final long length = getLong(KNOCK_CODE_LENGTH, KNOCK_CODE_LENGTH_DEFAULT, userId);
+        if (length < KNOCK_CODE_LENGTH_MIN || length > KNOCK_CODE_LENGTH_MAX) {
+            return KNOCK_CODE_LENGTH_DEFAULT;
+        }
+        return (int) length;
+    }
+
+    /**
+     * Records which grid the user enrolled their Knock Code on.
+     */
+    public void setKnockCodeGridSize(int gridSize, int userId) {
+        setLong(KNOCK_CODE_GRID_SIZE, gridSize, userId);
+    }
+
+    /** Returns the enrolled grid side, falling back to 2 if it is unset or out of range. */
+    public int getKnockCodeGridSize(int userId) {
+        final long gridSize = getLong(KNOCK_CODE_GRID_SIZE, KNOCK_CODE_GRID_SIZE_DEFAULT, userId);
+        if (gridSize < KNOCK_CODE_GRID_SIZE_MIN || gridSize > KNOCK_CODE_GRID_SIZE_MAX) {
+            return KNOCK_CODE_GRID_SIZE_DEFAULT;
+        }
+        return (int) gridSize;
+    }
+
+    /** Clamps a grid side into the supported range. */
+    private static int clampKnockCodeGridSize(int gridSize) {
+        if (gridSize < KNOCK_CODE_GRID_SIZE_MIN) {
+            return KNOCK_CODE_GRID_SIZE_MIN;
+        }
+        return Math.min(gridSize, KNOCK_CODE_GRID_SIZE_MAX);
+    }
+
+    /**
+     * How many decimal digits one tap encodes to on the given grid.
+     */
+    public static int knockCodeDigitsPerTap(int gridSize) {
+        final int size = clampKnockCodeGridSize(gridSize);
+        return Integer.toString(size * size).length();
+    }
+
+    /**
+     * Encodes the cell at ({@code row}, {@code col}) as the digits appended for one tap.
+     */
+    public static String encodeKnockCodeCell(int gridSize, int row, int col) {
+        final int size = clampKnockCodeGridSize(gridSize);
+        final int clampedRow = Math.max(0, Math.min(size - 1, row));
+        final int clampedCol = Math.max(0, Math.min(size - 1, col));
+        final int cellNumber = clampedRow * size + clampedCol + 1;
+        final int width = knockCodeDigitsPerTap(size);
+
+        final String digits = Integer.toString(cellNumber);
+        final StringBuilder encoded = new StringBuilder(width);
+        for (int i = digits.length(); i < width; i++) {
+            encoded.append('0');
+        }
+        return encoded.append(digits).toString();
     }
 
     public void setShowErrorPath(boolean enabled, int userId) {
