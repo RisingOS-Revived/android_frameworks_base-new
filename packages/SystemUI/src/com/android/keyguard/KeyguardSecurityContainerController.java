@@ -31,6 +31,7 @@ import static com.android.keyguard.KeyguardSecurityContainer.BOUNCER_DISMISS_SIM
 import static com.android.keyguard.KeyguardSecurityContainer.USER_TYPE_PRIMARY;
 import static com.android.keyguard.KeyguardSecurityContainer.USER_TYPE_SECONDARY_USER;
 import static com.android.keyguard.KeyguardSecurityContainer.USER_TYPE_WORK_PROFILE;
+import static com.android.keyguard.KeyguardSecurityModel.SecurityMode.KnockCode;
 import static com.android.keyguard.KeyguardSecurityModel.SecurityMode.PIN;
 import static com.android.keyguard.KeyguardSecurityModel.SecurityMode.Password;
 import static com.android.keyguard.KeyguardSecurityModel.SecurityMode.Pattern;
@@ -318,7 +319,7 @@ public class KeyguardSecurityContainerController extends ViewController<Keyguard
                                 : com.android.systemui.bouncer.shared.logging
                                         .BouncerUiEvent.BOUNCER_FAILURE_PASSWORD,
                         getSessionId());
-            } else if (mCurrentSecurityMode == PIN) {
+            } else if (mCurrentSecurityMode == PIN || mCurrentSecurityMode == KnockCode) {
                 mUiEventLogger.log(success ? com.android.systemui.bouncer.shared.logging
                         .BouncerUiEvent.BOUNCER_SUCCESS_PIN
                         : com.android.systemui.bouncer.shared.logging
@@ -980,6 +981,7 @@ public class KeyguardSecurityContainerController extends ViewController<Keyguard
                 case Pattern:
                 case Password:
                 case PIN:
+                case KnockCode:
                     authenticatedWithPrimaryAuth = true;
                     finish = true;
                     eventSubtype = BOUNCER_DISMISS_PASSWORD;

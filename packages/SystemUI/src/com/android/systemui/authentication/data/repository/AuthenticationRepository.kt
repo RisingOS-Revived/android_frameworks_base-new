@@ -564,6 +564,7 @@ constructor(
     private fun getAuthenticationMethodBlocking(@UserIdInt userId: Int): AuthenticationMethodModel {
         return when (getSecurityMode.apply(userId)) {
             KeyguardSecurityModel.SecurityMode.PIN -> Pin
+            KeyguardSecurityModel.SecurityMode.KnockCode -> Pin
             KeyguardSecurityModel.SecurityMode.SimPin,
             KeyguardSecurityModel.SecurityMode.SimPuk -> Sim
             KeyguardSecurityModel.SecurityMode.Password -> Password

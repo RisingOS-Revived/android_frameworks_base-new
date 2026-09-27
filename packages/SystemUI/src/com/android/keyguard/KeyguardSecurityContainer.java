@@ -530,13 +530,15 @@ public class KeyguardSecurityContainer extends ConstraintLayout {
         // helping with ignoring falsing. Otherwise falsing will be activated for some double taps
         mDoubleTapDetector.onTouchEvent(event);
 
+        final boolean swipeAllowed = !disallowBouncerSwipe();
+
         switch (action) {
             case MotionEvent.ACTION_MOVE:
                 mVelocityTracker.addMovement(event);
                 int pointerIndex = event.findPointerIndex(mActivePointerId);
                 if (pointerIndex != -1) {
                     float y = event.getY(pointerIndex);
-                    if (mLastTouchY != -1) {
+                    if (mLastTouchY != -1 && swipeAllowed) {
                         float dy = y - mLastTouchY;
                         setTranslationY(getTranslationY() + dy * TOUCH_Y_MULTIPLIER);
                     }
@@ -563,7 +565,8 @@ public class KeyguardSecurityContainer extends ConstraintLayout {
                 break;
         }
         if (action == MotionEvent.ACTION_UP) {
-            if (!mFalsingManager.isFalseTouch(Classifier.BOUNCER_SWIPE)) {
+            if (swipeAllowed
+                    && !mFalsingManager.isFalseTouch(Classifier.BOUNCER_SWIPE)) {
                 if (-getTranslationY() > TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP,
                         MIN_DRAG_SIZE, getResources().getDisplayMetrics())) {
                     if (mSwipeListener != null) {
@@ -579,6 +582,11 @@ public class KeyguardSecurityContainer extends ConstraintLayout {
             }
         }
         return true;
+    }
+
+    private boolean disallowBouncerSwipe() {
+        final KeyguardInputView securityView = mSecurityViewFlipper.getSecurityView();
+        return securityView != null && securityView.disallowBouncerSwipe();
     }
 
     private class DoubleTapListener extends GestureDetector.SimpleOnGestureListener {
@@ -757,6 +765,9 @@ public class KeyguardSecurityContainer extends ConstraintLayout {
                 break;
             case PIN:
                 messageId = R.string.kg_too_many_failed_pin_attempts_dialog_message;
+                break;
+            case KnockCode:
+                messageId = R.string.kg_too_many_failed_knock_code_attempts_dialog_message;
                 break;
             case Password:
                 messageId = R.string.kg_too_many_failed_password_attempts_dialog_message;
