@@ -329,6 +329,14 @@ public abstract class KeyguardInputViewController<T extends KeyguardInputView>
                         mUiEventLogger, mKeyguardKeyboardInteractor, mBouncerHapticPlayer,
                         mUserActivityNotifier, mInputManager, mLockPatternCheckerWrapper,
                         mUiLatencyStatsManager);
+            } else if (keyguardInputView instanceof KeyguardKnockCodeView) {
+                return new KeyguardKnockCodeViewController(
+                        (KeyguardKnockCodeView) keyguardInputView,
+                        mKeyguardUpdateMonitor, securityMode, mLockPatternUtils,
+                        keyguardSecurityCallback, mMessageAreaControllerFactory, mLatencyTracker,
+                        mFalsingCollector, emergencyButtonController, mFeatureFlags,
+                        mSelectedUserInteractor, mBouncerHapticPlayer, mUserActivityNotifier,
+                        mLockPatternCheckerWrapper, mUiLatencyStatsManager);
             } else if (keyguardInputView instanceof KeyguardSimPinView) {
                 return new KeyguardSimPinViewController((KeyguardSimPinView) keyguardInputView,
                         mKeyguardUpdateMonitor, securityMode, mLockPatternUtils,
