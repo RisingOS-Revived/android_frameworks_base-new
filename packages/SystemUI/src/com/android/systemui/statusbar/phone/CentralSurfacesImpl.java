@@ -104,6 +104,7 @@ import com.android.internal.logging.UiEventLogger;
 import com.android.internal.logging.UiEventLoggerImpl;
 import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
 import com.android.internal.statusbar.IStatusBarService;
+import com.android.internal.widget.LockPatternUtils;
 import com.android.keyguard.AuthKeyguardMessageArea;
 import com.android.keyguard.KeyguardUpdateMonitor;
 import com.android.keyguard.KeyguardUpdateMonitorCallback;
@@ -2846,6 +2847,12 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces,
             new FalsingManager.FalsingBeliefListener() {
                 @Override
                 public void onFalse() {
+                    // Knock Code is entered by tapping, and falsing reads those taps as accidental
+                    if (mStatusBarKeyguardViewManager.isBouncerShowing()
+                            && new LockPatternUtils(mContext).isKnockCodeEnabled(
+                                    mLockscreenUserManager.getCurrentUserId())) {
+                        return;
+                    }
                     // Hides quick settings, bouncer, and quick-quick settings.
                     mStatusBarKeyguardViewManager.reset(true, /* isFalsingReset= */true);
                 }

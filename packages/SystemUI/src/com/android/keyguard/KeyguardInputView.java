@@ -58,6 +58,10 @@ public abstract class KeyguardInputView extends LinearLayout {
         return false;
     }
 
+    boolean disallowBouncerSwipe() {
+        return false;
+    }
+
     void startAppearAnimation() {}
 
     boolean startDisappearAnimation(Runnable finishRunnable) {
