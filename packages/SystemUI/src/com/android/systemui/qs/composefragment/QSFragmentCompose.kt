@@ -27,6 +27,7 @@ import android.graphics.Rect
 import android.os.Bundle
 import android.os.Trace
 import android.os.UserHandle
+import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -1155,6 +1156,7 @@ constructor(
 
         val isMirroring = viewModel.showingMirror
         val contentAlpha by animateFloatAsState(targetValue = if (isMirroring) 0f else 1f, tween(200), label = "mirroring_alpha")
+        val qqsContentSettings = rememberQqsContentSettings()
 
         DisposableEffect(Unit) {
             qqsVisible.value = true
@@ -1247,7 +1249,13 @@ constructor(
                                 .padding(horizontal = qsHorizontalMargin())
                     ) {
                         EditableQuickQuickSettingsLayout(
-                            sectionConfigs = sectionConfigs,
+                            sectionConfigs = sectionConfigs.filter {
+                                when (it.type) {
+                                    SectionType.BRIGHTNESS -> qqsContentSettings.showBrightness
+                                    SectionType.MEDIA -> qqsContentSettings.showMedia
+                                    else -> true
+                                }
+                            },
                             sectionEditModeViewModel = viewModel.sectionEditModeViewModel,
                             nonBrightnessAlpha = contentAlpha,
                             brightness = BrightnessSlider,
@@ -2347,6 +2355,51 @@ private fun rememberQsBrightnessSettings(): QsBrightnessSettings {
         onDispose {
             cr.unregisterContentObserver(observer)
         }
+    }
+
+    return state
+}
+
+private const val QQS_SHOW_BRIGHTNESS_SLIDER = "qqs_show_brightness_slider"
+private const val QQS_SHOW_MEDIA = "qqs_show_media"
+
+private data class QqsContentSettings(
+    val showBrightness: Boolean,
+    val showMedia: Boolean,
+)
+
+@Composable
+private fun rememberQqsContentSettings(): QqsContentSettings {
+    val context = LocalContext.current
+    val cr = remember { context.contentResolver }
+
+    fun readFlag(key: String): Boolean =
+        Settings.System.getIntForUser(cr, key, 1, UserHandle.USER_CURRENT) != 0
+
+    fun readCurrent() =
+        QqsContentSettings(
+            showBrightness = readFlag(QQS_SHOW_BRIGHTNESS_SLIDER),
+            showMedia = readFlag(QQS_SHOW_MEDIA),
+        )
+
+    var state by remember { mutableStateOf(readCurrent()) }
+
+    DisposableEffect(Unit) {
+        val observer =
+            object : ContentObserver(null) {
+                override fun onChange(selfChange: Boolean) {
+                    context.mainExecutor.execute { state = readCurrent() }
+                }
+            }
+        listOf(QQS_SHOW_BRIGHTNESS_SLIDER, QQS_SHOW_MEDIA).forEach {
+            cr.registerContentObserver(
+                Settings.System.getUriFor(it),
+                false,
+                observer,
+                UserHandle.USER_ALL,
+            )
+        }
+        onDispose { cr.unregisterContentObserver(observer) }
     }
 
     return state
