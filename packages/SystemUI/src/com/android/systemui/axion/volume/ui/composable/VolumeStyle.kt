@@ -24,11 +24,16 @@ import android.provider.Settings
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import com.android.systemui.axion.volume.ui.composable.lunaris.LunarisVolumeDialogContent
+import com.android.systemui.axion.volume.ui.composable.touchwiz.TouchWizVolumeDialogContent
 import com.android.systemui.axion.volume.ui.viewmodel.AxionVolumeDialogViewModel
 
 enum class VolumeStyle(val value: Int) {
     AXION(0),
-    LUNARIS(1);
+    LUNARIS(1),
+    TOUCHWIZ(2);
+
+    val isHorizontal: Boolean
+        get() = this == TOUCHWIZ
 
     companion object {
         const val SETTINGS_KEY = "compose_volume_style"
@@ -72,11 +77,14 @@ private fun readStyle(context: Context): VolumeStyle =
         )
     )
 
+fun currentVolumeStyle(context: Context): VolumeStyle = readStyle(context)
+
 @Composable
 fun VolumeStyleDispatcher(viewModel: AxionVolumeDialogViewModel) {
     val style by rememberVolumeStyle()
     when (style) {
-        VolumeStyle.AXION  -> AxionVolumeDialogContent(viewModel)
-        VolumeStyle.LUNARIS -> LunarisVolumeDialogContent(viewModel)
+        VolumeStyle.AXION    -> AxionVolumeDialogContent(viewModel)
+        VolumeStyle.LUNARIS  -> LunarisVolumeDialogContent(viewModel)
+        VolumeStyle.TOUCHWIZ -> TouchWizVolumeDialogContent(viewModel)
     }
 }

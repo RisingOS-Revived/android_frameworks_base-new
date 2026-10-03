@@ -16,7 +16,11 @@
 package com.android.systemui.axion.volume
 
 import android.content.Context
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
+import android.provider.Settings
 import android.view.*
 import android.widget.FrameLayout
 import androidx.activity.ComponentDialog
@@ -48,6 +52,15 @@ class AxionVolumeDialog @Inject constructor(
     var isExpanded: Boolean = false
     var isLeftSide: Boolean = false
 
+    private var panelWidthPx: Int = 0
+    private var panelHeightPx: Int = 0
+
+    private val styleObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            applyPlacement()
+        }
+    }
+
     init {
         with(window!!) {
             clearFlags(
@@ -76,7 +89,42 @@ class AxionVolumeDialog @Inject constructor(
     }
 
     fun updateWindowGravity(isLeftSide: Boolean) {
-        window?.setGravity((if (isLeftSide) Gravity.START else Gravity.END) or Gravity.CENTER_VERTICAL)
+        this.isLeftSide = isLeftSide
+        applyPlacement()
+    }
+
+    private fun applyPlacement() {
+        val w = window ?: return
+        val density = context.resources.displayMetrics.density
+        if (currentVolumeStyle(context).isHorizontal) {
+            w.setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+            w.attributes = w.attributes.apply {
+                y = statusBarHeightPx() + (8 * density).toInt()
+            }
+        } else {
+            w.setGravity(
+                (if (isLeftSide) Gravity.START else Gravity.END) or Gravity.CENTER_VERTICAL
+            )
+            w.attributes = w.attributes.apply { y = 0 }
+        }
+    }
+
+    private fun statusBarHeightPx(): Int = runCatching {
+        context.resources.getDimensionPixelSize(R.dimen.status_bar_height)
+    }.getOrDefault(0)
+
+    override fun onStart() {
+        super.onStart()
+        context.contentResolver.registerContentObserver(
+            Settings.System.getUriFor(VolumeStyle.SETTINGS_KEY),
+            false,
+            styleObserver
+        )
+    }
+
+    override fun onStop() {
+        super.onStop()
+        runCatching { context.contentResolver.unregisterContentObserver(styleObserver) }
     }
 
     private fun setupContent() {
@@ -143,6 +191,11 @@ class AxionVolumeDialog @Inject constructor(
         init {
             layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)
             addView(compose, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
+
+            compose.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
+                panelWidthPx = right - left
+                panelHeightPx = bottom - top
+            }
         }
 
         override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
@@ -157,8 +210,15 @@ class AxionVolumeDialog @Inject constructor(
 
         private fun isTouchOutsidePanelBounds(x: Float, y: Float): Boolean {
             if (isExpanded) return false
-            val density = resources.displayMetrics.density
-            val widthPx = 66 * density
+
+            val fallback = 66 * resources.displayMetrics.density
+
+            if (currentVolumeStyle(this@AxionVolumeDialog.context).isHorizontal) {
+                val heightPx = if (panelHeightPx > 0) panelHeightPx.toFloat() else fallback
+                return y > heightPx
+            }
+
+            val widthPx = if (panelWidthPx > 0) panelWidthPx.toFloat() else fallback
             val w = width.toFloat()
             val ls = isLeftSide
             return if (ls) x > widthPx else x < (w - widthPx)
