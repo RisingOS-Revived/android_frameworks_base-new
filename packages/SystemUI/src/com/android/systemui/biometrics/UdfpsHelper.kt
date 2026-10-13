@@ -94,7 +94,6 @@ class UdfpsHelper(
     private val alphaAnimator = ValueAnimator().apply {
         duration = 800L
         addUpdateListener { animator ->
-            view.alpha = animator.animatedValue as Float
             dimLayoutParams.alpha = animator.animatedValue as Float
             try {
                 windowManager.updateViewLayout(view, dimLayoutParams)
@@ -147,7 +146,7 @@ class UdfpsHelper(
     // than what is set on config_screenBrightnessSettingMinimumFloat.
     // While it's possible to operate with floats, the dimming array was made by referencing
     // brightness_alpha_lut array from the kernel. This provides a comparable array.
-    private fun brightnessToAlpha(): Float {
+    private fun brightnessToAlpha() {
         val adjustedBrightness =
             (currentBrightness.coerceIn(minBrightness, maxBrightness) * maxPanelBrightness).toInt()
 
@@ -156,25 +155,19 @@ class UdfpsHelper(
 
         Log.i(TAG, "Adjusted Brightness: $adjustedBrightness, Alpha: $targetAlpha")
 
-        alphaAnimator.setFloatValues(view.alpha, targetAlpha)
-        return targetAlpha
+        alphaAnimator.cancel()
+        alphaAnimator.setFloatValues(dimLayoutParams.alpha, targetAlpha)
+        // Keep the black view opaque: view and window alpha multiply during composition.
+        dimLayoutParams.alpha = targetAlpha
     }
 
     private fun animateToCurrentBrightness() {
         brightnessToAlpha()
-        alphaAnimator.cancel()
         alphaAnimator.start()
     }
 
-    private fun snapToCurrentBrightness() {
-        val targetAlpha = brightnessToAlpha()
-        alphaAnimator.cancel()
-        view.alpha = targetAlpha
-        dimLayoutParams.alpha = targetAlpha
-    }
-
     fun addDimLayer() {
-        snapToCurrentBrightness()
+        brightnessToAlpha()
         windowManager.addView(view, dimLayoutParams)
         displayManager.registerDisplayListener(
             displayListener,
