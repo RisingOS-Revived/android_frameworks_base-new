@@ -476,6 +476,7 @@ java_defaults {
 
 android_library {
     name: "SystemUI-core",
+    additional_manifests: ["LockscreenWidgetsManifest.xml"],
     srcs: [
         "src/**/*.kt",
         "src/**/*.java",
@@ -494,6 +495,7 @@ android_library {
         "axquicklook-client",
         "ax_compose",
         "LunarisClockMaker",
+        "LunarisLockscreenWidgets",
         "ax_blur",
         "SystemUI-res",
         "WifiTrackerLib",

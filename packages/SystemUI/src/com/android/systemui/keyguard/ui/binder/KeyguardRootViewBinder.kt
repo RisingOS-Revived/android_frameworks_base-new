@@ -201,6 +201,7 @@ object KeyguardRootViewBinder {
                             childViews[burnInLayerId]?.alpha = alpha
                             childViews[sliceViewId]?.alpha = alpha
                             childViews[weatherAreaId]?.alpha = alpha
+                            childViews[R.id.keyguard_app_widgets]?.alpha = alpha
                         }
                     }
 
@@ -229,6 +230,7 @@ object KeyguardRootViewBinder {
                             childViews[burnInLayerId]?.translationY = y
                             childViews[sliceViewId]?.translationY = y
                             childViews[weatherAreaId]?.translationY = y
+                            childViews[R.id.keyguard_app_widgets]?.translationY = y
                             childViews[largeClockId]?.translationY = y
                             childViews[largeClockDateId]?.translationY = y
                             childViews[aodPromotedNotificationId]?.translationY = y

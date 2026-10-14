@@ -104,11 +104,11 @@ constructor(
             aodBurnInSection,
             keyguardWeatherViewSection,
             keyguardSliceViewSection,
-            keyguardWidgetViewSection,
+            clockSection,
             infoWidgetsSection,
             keyguardClockStyleSection,
             aodStyleSection,
-            clockSection,
+            keyguardWidgetViewSection,
             defaultDeviceEntrySection,
             udfpsAccessibilityOverlaySection, // Add LAST: Intentionally has z-order above others
     )
