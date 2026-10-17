@@ -83,6 +83,8 @@ constructor(
     @Background bgDispatcher: CoroutineDispatcher,
     dumpManager: DumpManager,
 ) : FlowDumperImpl(dumpManager) {
+    val isShadeAnyExpanded = shadeInteractor.isShadeAnyExpanded
+
     /**
      * We want the NSSL to be unimportant for accessibility when there are no notifications in it
      * while the device is on lock screen, to avoid an unlabelled NSSL view in TalkBack. Otherwise,
