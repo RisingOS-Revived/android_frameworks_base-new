@@ -42,6 +42,7 @@ import static com.android.systemui.util.DumpUtilsKt.visibilityString;
 
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
+import android.animation.ValueAnimator;
 import android.annotation.ColorInt;
 import android.annotation.FloatRange;
 import android.annotation.IntDef;
@@ -65,6 +66,7 @@ import android.os.Bundle;
 import android.os.PowerManagerInternal;
 import android.os.SystemClock;
 import android.os.Trace;
+import android.os.UserHandle;
 import android.util.AttributeSet;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
@@ -496,6 +498,9 @@ public class NotificationStackScrollLayout
     private int mMotoCompactUserId = UserHandle.USER_NULL;
     private final ArrayList<ExpandableNotificationRow> mMotoCompactExpandedRows = new ArrayList<>();
     private final ArrayList<ExpandableNotificationRow> mMotoCompactPreviewRows = new ArrayList<>();
+    private final MotoCompactNotificationAnimator mMotoCompactAnimator =
+            new MotoCompactNotificationAnimator(this);
+    private StatusBarIconView mMotoCompactIcon;
     private Consumer<Boolean> mMotoCompactPreviewListener;
     /**
      * Limits the number of visible notifications. The remaining are collapsed in the notification
@@ -1513,6 +1518,9 @@ public class NotificationStackScrollLayout
      */
     private void updateChildren() {
         Trace.beginSection("NSSL#updateChildren");
+        if (mMotoCompactPackage != null && !isMotoCompactDesignActive()) {
+            finishMotoCompactSelection();
+        }
         updateScrollStateForAddedChildren();
         mAmbientState.setCurrentScrollVelocity(mScroller.isFinished()
                 ? 0
@@ -2967,7 +2975,8 @@ public class NotificationStackScrollLayout
         // The topPadding can be bigger than the regular padding when qs is expanded, in that
         // state the maxPanelHeight and the contentHeight should be bigger
         setContentHeight(
-                (int) (height + Math.max(getIntrinsicPadding(), getTopPadding()) + mBottomPadding));
+                (int) (height + Math.max(getIntrinsicPadding(), getTopPadding())
+                        - getMotoCompactPreviewTopOffset() + mBottomPadding));
         updateScrollability();
         clampScrollPosition();
         updateStackPosition();
@@ -3572,6 +3581,11 @@ public class NotificationStackScrollLayout
         mAnimationsEnabled = animationsEnabled;
         updateNotificationAnimationStates();
         if (!animationsEnabled) {
+            if (mMotoCompactAnimator.isCollapsing()) {
+                finishMotoCompactCollapse();
+            } else {
+                mMotoCompactAnimator.cancel();
+            }
             mSwipedOutViews.clear();
             mChildrenToRemoveAnimated.clear();
             clearTemporaryViewsInGroup(
@@ -4090,25 +4104,33 @@ public class NotificationStackScrollLayout
         if (SceneContainerFlag.isUnexpectedlyInLegacyMode()) {
             return false;
         }
-        RectF bounds = mAmbientState.getDrawBounds();
-        if (isLockscreenNotificationLayoutActive() && areLockscreenNotificationsBottomAnchored()) {
-            // The selected anchor can extend below the default fingerprint boundary.
-            final float bottom = Math.max(bounds.bottom,
-                    mStackScrollAlgorithm.getLockscreenNotificationStack().getBottom());
-            return x >= bounds.left && x < bounds.right && y >= bounds.top && y < bottom;
-        }
-        return bounds.contains(x, y);
-
         ShadeScrimShape shape = mScrollViewFields.clippingShape;
         if (shape == null) {
             return false;
         }
         ShadeScrimBounds bounds = shape.getBounds();
         Log.d("NSSL", "bounds=" + bounds + " x: " + x + " y: " + y);
+        final float top = bounds.getTop() - getMotoCompactPreviewTopOffset();
+        float bottom = bounds.getBottom();
+        if (isLockscreenNotificationLayoutActive() && areLockscreenNotificationsBottomAnchored()) {
+            // The selected anchor can extend below the default fingerprint boundary.
+            bottom = Math.max(bottom,
+                    mStackScrollAlgorithm.getLockscreenNotificationStack().getBottom());
+        }
         return x < bounds.getLeft()
                 || x > bounds.getRight()
-                || y < bounds.getTop()
-                || y > bounds.getBottom();
+                || y < top
+                || y > bottom;
+    }
+
+    private boolean isInDrawBounds(float x, float y) {
+        ShadeScrimShape shape = mScrollViewFields.clippingShape;
+        if (shape == null) {
+            return true;
+        }
+        ShadeScrimBounds bounds = shape.getBounds();
+        return x >= bounds.getLeft() && x <= bounds.getRight()
+                && y >= bounds.getTop() && y <= bounds.getBottom();
     }
 
     /**
@@ -4305,7 +4327,7 @@ public class NotificationStackScrollLayout
 
     private boolean isOnLockscreenStackEmptySpace(float y) {
         final float stackTop = SceneContainerFlag.isEnabled()
-                ? mAmbientState.getStackTop() : mAmbientState.getStackY();
+                ? mAmbientState.getStackScrollTop() : mAmbientState.getStackY();
         if (y < stackTop) {
             return false;
         }
@@ -5569,7 +5591,7 @@ public class NotificationStackScrollLayout
         }
         mAmbientState.setDozing(dozing);
         if (dozing) {
-            clearMotoCompactSelection();
+            finishMotoCompactSelection();
         }
         setNotificationsDozing(dozing);
         requestChildrenUpdate();
@@ -6243,8 +6265,9 @@ public class NotificationStackScrollLayout
     }
 
     public float getLockscreenNotificationAvailableHeight(float defaultHeight) {
+        final float previewTopOffset = getMotoCompactPreviewTopOffset();
         if (!areLockscreenNotificationsBottomAnchored()) {
-            return defaultHeight;
+            return defaultHeight + previewTopOffset;
         }
         final View root = getRootView();
         root.getLocationOnScreen(mTempInt2);
@@ -6252,15 +6275,33 @@ public class NotificationStackScrollLayout
         getLocationOnScreen(mTempInt2);
         // Exclude the view's animated translation so the anchor follows lock screen transitions.
         final float viewTop = mTempInt2[1] - rootTop - getTranslationY();
-        final float stackTop = SceneContainerFlag.isEnabled()
-                ? mAmbientState.getStackTop() : mAmbientState.getTopPadding();
+        final float stackTop = (SceneContainerFlag.isEnabled()
+                ? mAmbientState.getStackScrollTop() : mAmbientState.getTopPadding()) - previewTopOffset;
         final WindowInsets insets = root.getRootWindowInsets();
         final int bottomInset = insets != null ? insets.getInsetsIgnoringVisibility(
                 WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()).bottom : 0;
         final float height = mStackScrollAlgorithm.getLockscreenNotificationStack()
-                .getAvailableHeight(defaultHeight, root.getHeight(), viewTop, stackTop, bottomInset);
+                .getAvailableHeight(defaultHeight + previewTopOffset, root.getHeight(), viewTop,
+                        stackTop, bottomInset);
         requestChildrenUpdate();
         return height;
+    }
+
+    public float getMotoCompactPreviewTopOffset() {
+        if (!isMotoCompactPreviewVisible()) return 0f;
+        final View root = getRootView();
+        root.getLocationOnScreen(mTempInt2);
+        final int rootTop = mTempInt2[1];
+        getLocationOnScreen(mTempInt2);
+        final float viewTop = mTempInt2[1] - rootTop - getTranslationY();
+        final WindowInsets insets = root.getRootWindowInsets();
+        final int topInset = insets != null ? insets.getInsetsIgnoringVisibility(
+                WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()).top
+                : SystemBarUtils.getStatusBarHeight(mContext);
+        final float previewTop = Math.max(0f, topInset + mPaddingBetweenElements - viewTop);
+        final float stackTop = SceneContainerFlag.isEnabled()
+                ? mAmbientState.getStackScrollTop() : mAmbientState.getTopPadding();
+        return Math.max(0f, stackTop - previewTop);
     }
 
     private void requestAnimateLockscreenNotificationStack() {
@@ -6272,7 +6313,7 @@ public class NotificationStackScrollLayout
     }
 
     void resetLockscreenNotificationStack() {
-        clearMotoCompactSelection();
+        finishMotoCompactSelection();
         mCollapseStackOnTouchUp = false;
         mStackScrollAlgorithm.getLockscreenNotificationStack().reset();
         requestChildrenUpdate();
@@ -6340,28 +6381,48 @@ public class NotificationStackScrollLayout
         }
     }
 
-    public void toggleMotoCompactApp(StatusBarNotification notification) {
+    public void toggleMotoCompactApp(StatusBarIconView icon) {
+        if (icon == null) return;
+        final StatusBarNotification notification = icon.getNotification();
         if (!isMotoCompactDesignActive() || !isLockscreenNotificationLayoutActive()
                 || notification == null) return;
-        final boolean collapse = isMotoCompactAppSelected(notification);
+        if (isMotoCompactAppSelected(notification)) {
+            if (mMotoCompactAnimator.isCollapsing()) {
+                mMotoCompactIcon = icon;
+                mMotoCompactAnimator.start(icon, mMotoCompactPreviewRows, true,
+                        this::finishMotoCompactCollapse);
+            } else {
+                clearMotoCompactSelection();
+            }
+            return;
+        }
+        mMotoCompactAnimator.cancel();
         resetMotoCompactExpandedRows();
-        mMotoCompactPackage = collapse ? null : notification.getPackageName();
-        mMotoCompactUserId = collapse ? UserHandle.USER_NULL : notification.getUserId();
-        if (!collapse) {
-            for (int i = 0; i < getChildCount(); i++) {
-                if (getChildAt(i) instanceof ExpandableNotificationRow row
-                        && row.getVisibility() != GONE && isMotoCompactNotificationSelected(row)) {
-                    mMotoCompactPreviewRows.add(row);
-                    row.setMotoCompactPreview(true);
-                    if (!row.isUserExpanded() && !row.isGroupExpanded()) {
-                        mMotoCompactExpandedRows.add(row);
-                        // The row retains its public/redacted content and normal action handling.
-                        row.setUserExpanded(true, true /* allowChildExpansion */);
-                    }
+        mMotoCompactPackage = notification.getPackageName();
+        mMotoCompactUserId = notification.getUserId();
+        mMotoCompactIcon = icon;
+        for (int i = 0; i < getChildCount(); i++) {
+            if (getChildAt(i) instanceof ExpandableNotificationRow row
+                    && row.getVisibility() != GONE && isMotoCompactNotificationSelected(row)) {
+                mMotoCompactPreviewRows.add(row);
+                row.setMotoCompactPreview(true);
+                if (!row.isUserExpanded() && !row.isGroupExpanded()) {
+                    mMotoCompactExpandedRows.add(row);
+                    row.setUserExpanded(true, true /* allowChildExpansion */);
                 }
             }
         }
+        if (canAnimateMotoCompactPreview()) {
+            mMotoCompactAnimator.start(icon, mMotoCompactPreviewRows, true,
+                    this::finishMotoCompactCollapse);
+        }
         updateMotoCompactPreview();
+    }
+
+    private boolean canAnimateMotoCompactPreview() {
+        return mAnimationsEnabled && ValueAnimator.areAnimatorsEnabled() && isAttachedToWindow()
+                && isMotoCompactDesignActive() && mMotoCompactIcon != null
+                && mMotoCompactIcon.isAttachedToWindow() && !mMotoCompactPreviewRows.isEmpty();
     }
 
     private void resetMotoCompactExpandedRows() {
@@ -6378,6 +6439,27 @@ public class NotificationStackScrollLayout
 
     public void clearMotoCompactSelection() {
         if (mMotoCompactPackage == null) return;
+        if (canAnimateMotoCompactPreview()) {
+            if (!mMotoCompactAnimator.isCollapsing()) {
+                mMotoCompactAnimator.start(mMotoCompactIcon, mMotoCompactPreviewRows, false,
+                        this::finishMotoCompactCollapse);
+            }
+            return;
+        }
+        finishMotoCompactSelection();
+    }
+
+    private void finishMotoCompactCollapse() {
+        for (ExpandableNotificationRow row : mMotoCompactPreviewRows) {
+            if (row.getVisibility() != GONE) row.setVisibility(INVISIBLE);
+        }
+        finishMotoCompactSelection();
+    }
+
+    private void finishMotoCompactSelection() {
+        mMotoCompactAnimator.cancel();
+        mMotoCompactIcon = null;
+        if (mMotoCompactPackage == null) return;
         mMotoCompactPackage = null;
         mMotoCompactUserId = UserHandle.USER_NULL;
         resetMotoCompactExpandedRows();
@@ -6385,8 +6467,14 @@ public class NotificationStackScrollLayout
     }
 
     public void onMotoCompactDesignChanged() {
-        clearMotoCompactSelection();
+        finishMotoCompactSelection();
         updateMotoCompactPreview();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        finishMotoCompactSelection();
+        super.onDetachedFromWindow();
     }
 
     private void updateMotoCompactPreview() {
@@ -6864,7 +6952,7 @@ public class NotificationStackScrollLayout
         float previousDozeAmount = mAmbientState.getDozeAmount();
         mAmbientState.setDozeAmount(dozeAmount);
         if (dozeAmount > previousDozeAmount) {
-            clearMotoCompactSelection();
+            finishMotoCompactSelection();
             setNotificationsDozing(true);
         } else if (dozeAmount < previousDozeAmount) {
             setNotificationsDozing(false);
@@ -7398,6 +7486,15 @@ public class NotificationStackScrollLayout
 
     @Override
     protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
+        final int saveCount = mMotoCompactAnimator.prepareCanvas(canvas, child);
+        try {
+            return drawChildWithStackClipping(canvas, child, drawingTime);
+        } finally {
+            if (saveCount >= 0) canvas.restoreToCount(saveCount);
+        }
+    }
+
+    private boolean drawChildWithStackClipping(Canvas canvas, View child, long drawingTime) {
         boolean shouldUseClipping =
                 mShouldUseRoundedRectClipping || mShouldUseNegativeRoundedRectClipping;
         if (mBlurEffect != null) {
