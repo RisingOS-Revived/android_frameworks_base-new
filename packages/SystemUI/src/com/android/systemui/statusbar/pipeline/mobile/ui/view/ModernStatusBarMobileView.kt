@@ -31,6 +31,7 @@ import com.android.systemui.statusbar.StatusBarIconView.getVisibleStateString
 import com.android.systemui.statusbar.core.NewStatusBarIcons
 import com.android.systemui.statusbar.phone.StatusBarLocation
 import com.android.systemui.statusbar.pipeline.mobile.ui.MobileViewLogger
+import com.android.systemui.statusbar.pipeline.mobile.ui.SignalIconLoader
 import com.android.systemui.statusbar.pipeline.mobile.ui.binder.MobileIconBinder
 import com.android.systemui.statusbar.pipeline.mobile.ui.binder.MobileIconBinderKairos
 import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.LocationBasedMobileViewModel
@@ -79,10 +80,14 @@ class ModernStatusBarMobileView(context: Context, attrs: AttributeSet?) :
 
         // triangle
         requireViewById<ImageView>(R.id.mobile_signal).apply {
-            layoutParams.height =
-                context.resources.getDimensionPixelSize(
+            val signalHeightRes =
+                if (SignalIconLoader.hasOverlayIcons(context)) {
+                    R.dimen.status_bar_mobile_signal_size
+                } else {
                     R.dimen.status_bar_mobile_signal_size_updated
-                )
+                }
+            layoutParams.height =
+                context.resources.getDimensionPixelSize(signalHeightRes)
         }
 
         // RAT indicator container
