@@ -29,6 +29,7 @@ import com.android.systemui.lifecycle.repeatWhenAttached
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.StatusBarIconView
 import com.android.systemui.statusbar.StatusBarIconView.STATE_HIDDEN
+import com.android.systemui.statusbar.core.NewStatusBarIcons
 import com.android.systemui.statusbar.pipeline.shared.ui.binder.ModernStatusBarViewBinding
 import com.android.systemui.statusbar.pipeline.shared.ui.binder.ModernStatusBarViewVisibilityHelper
 import com.android.systemui.statusbar.pipeline.wifi.ui.model.VoWifiIcon
@@ -101,10 +102,28 @@ object WifiViewBinder {
                             when (wifiIcon) {
                                 is WifiIcon.Visible -> {
                                     IconViewBinder.bind(wifiIcon.icon, iconView)
+                                    if (NewStatusBarIcons.isEnabled) {
+                                        val targetHeight = iconView.resources.getDimensionPixelSize(
+                                            R.dimen.status_bar_wifi_signal_height_updated
+                                        )
+                                        if (iconView.layoutParams.height != targetHeight) {
+                                            iconView.layoutParams.height = targetHeight
+                                            iconView.requestLayout()
+                                        }
+                                    }
                                     true
                                 }
                                 is WifiIcon.VisibleWithOverlay -> {
                                     IconViewBinder.bind(wifiIcon.icon, iconView)
+                                    if (NewStatusBarIcons.isEnabled) {
+                                        val targetHeight = iconView.resources.getDimensionPixelSize(
+                                            R.dimen.status_bar_wifi_signal_size
+                                        )
+                                        if (iconView.layoutParams.height != targetHeight) {
+                                            iconView.layoutParams.height = targetHeight
+                                            iconView.requestLayout()
+                                        }
+                                    }
                                     true
                                 }
                                 else -> false
