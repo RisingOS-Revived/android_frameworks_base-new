@@ -248,8 +248,19 @@ class WifiIconLoader @Inject constructor(
 
     companion object {
         private const val TAG = "WifiIconLoader"
-        private const val SETTING_KEY = "wifi_icon_use_overlays"
-        private const val ACTION_RELOAD_WIFI_ICONS = "com.android.systemui.RELOAD_WIFI_ICONS"
+        const val SETTING_KEY = "wifi_icon_use_overlays"
+        const val ACTION_RELOAD_WIFI_ICONS = "com.android.systemui.RELOAD_WIFI_ICONS"
+
+        fun hasOverlayIcons(context: Context): Boolean {
+            val enabled = try {
+                Settings.System.getInt(context.contentResolver, SETTING_KEY, 0) == 1
+            } catch (e: Exception) {
+                false
+            }
+            if (!enabled) return false
+            val id = context.resources.getIdentifier("ic_wifi_signal_0", "drawable", "android")
+            return id != 0
+        }
 
         fun setOverlaysEnabled(context: Context, enabled: Boolean) {
             Settings.System.putInt(

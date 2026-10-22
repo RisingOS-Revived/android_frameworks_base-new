@@ -16,8 +16,11 @@
 
 package com.android.systemui.statusbar.pipeline.mobile.ui
 
+import android.content.BroadcastReceiver
 import android.content.ContentResolver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.res.Resources
 import android.database.ContentObserver
 import android.graphics.drawable.Drawable
@@ -25,6 +28,7 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Log
 import com.android.systemui.dagger.SysUISingleton
 import javax.inject.Inject
 
@@ -41,9 +45,6 @@ class SignalIconLoader @Inject constructor(
     private val contentResolver: ContentResolver = context.contentResolver
     private val reloadCallbacks = mutableListOf<() -> Unit>()
 
-    private val SETTING_KEY = "signal_icon_use_overlays"
-    private val DEFAULT_USE_OVERLAYS = true
-
     private var userPreferenceEnabled: Boolean = true
 
     private val settingsObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
@@ -55,12 +56,30 @@ class SignalIconLoader @Inject constructor(
         }
     }
 
+    private val broadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                ACTION_RELOAD_MOBILE_ICONS -> {
+                    reload()
+                    notifyReloadCallbacks()
+                }
+            }
+        }
+    }
+
     init {
         loadUserPreference()
         determineIconSize()
 
         if (userPreferenceEnabled) {
             detectOverlayIcons()
+        }
+
+        try {
+            val filter = IntentFilter(ACTION_RELOAD_MOBILE_ICONS)
+            context.registerReceiver(broadcastReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to register broadcast receiver", e)
         }
 
         try {
@@ -271,15 +290,50 @@ class SignalIconLoader @Inject constructor(
         try {
             contentResolver.unregisterContentObserver(settingsObserver)
         } catch (e: Exception) {
+            Log.e(TAG, "Failed to unregister settings observer", e)
         }
+
+        try {
+            context.unregisterReceiver(broadcastReceiver)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to unregister broadcast receiver", e)
+        }
+
         reloadCallbacks.clear()
     }
 
     companion object {
+        private const val TAG = "SignalIconLoader"
+        const val ACTION_RELOAD_MOBILE_ICONS = "com.android.systemui.RELOAD_MOBILE_ICONS"
+        const val SETTING_KEY = "signal_icon_use_overlays"
+        const val DEFAULT_USE_OVERLAYS = true
+
+        fun hasOverlayIcons(context: Context): Boolean {
+            val enabled = try {
+                Settings.System.getInt(
+                    context.contentResolver,
+                    SETTING_KEY,
+                    if (DEFAULT_USE_OVERLAYS) 1 else 0
+                ) == 1
+            } catch (e: Exception) {
+                DEFAULT_USE_OVERLAYS
+            }
+            if (!enabled) return false
+            val res = context.resources
+            return res.getIdentifier("ic_mobile_level_list", "drawable", "android") != 0 ||
+                res.getIdentifier("ic_signal_cellular_0_4_bar", "drawable", "android") != 0 ||
+                res.getIdentifier("ic_signal_cellular_0_5_bar", "drawable", "android") != 0
+        }
+
+        fun sendReloadBroadcast(context: Context) {
+            val intent = Intent(ACTION_RELOAD_MOBILE_ICONS)
+            context.sendBroadcast(intent)
+        }
+
         fun setOverlaysEnabled(context: Context, enabled: Boolean) {
             Settings.System.putInt(
                 context.contentResolver,
-                "signal_icon_use_overlays",
+                SETTING_KEY,
                 if (enabled) 1 else 0
             )
         }

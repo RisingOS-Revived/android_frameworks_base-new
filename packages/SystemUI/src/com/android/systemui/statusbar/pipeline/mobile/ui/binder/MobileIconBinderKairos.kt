@@ -39,6 +39,7 @@ import com.android.systemui.kairos.util.nameTag
 import com.android.systemui.plugins.DarkIconDispatcher
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.StatusBarIconView
+import com.android.systemui.statusbar.core.NewStatusBarIcons
 import com.android.systemui.statusbar.pipeline.mobile.domain.model.SignalIconModel
 import com.android.systemui.statusbar.pipeline.mobile.ui.MobileViewLogger
 import com.android.systemui.statusbar.pipeline.mobile.ui.SignalIconLoader
@@ -231,6 +232,7 @@ object MobileIconBinderKairos {
                             }
                             else -> false
                         }
+                var layoutHeightChanged = false
                 if (newIcon is SignalIconModel.CellularTypeIconModel) {
                     val packedSignalDrawableState = newIcon.toSignalDrawableState()
                     viewModel.verboseLogger?.logBinderReceivedSignalCellularTypeIcon(
@@ -246,7 +248,14 @@ object MobileIconBinderKairos {
                             newIcon is SignalIconModel.CellularTypeIconModel.Cellular &&
                                 loader.hasOverlayIcons()
                         ) {
-                            val targetSize = mobileDrawable.intrinsicWidth.takeIf { it > 0 }
+                            val targetSize =
+                                if (NewStatusBarIcons.isEnabled) {
+                                    view.context.resources.getDimensionPixelSize(
+                                        R.dimen.status_bar_mobile_signal_size
+                                    )
+                                } else {
+                                    mobileDrawable.intrinsicWidth.takeIf { it > 0 }
+                                }
                             loader.loadSignalIcon(newIcon.level, newIcon.numberOfLevels, targetSize)
                         } else {
                             null
@@ -254,9 +263,29 @@ object MobileIconBinderKairos {
 
                     if (overlayDrawable != null) {
                         iconView.setImageDrawable(overlayDrawable)
+                        if (NewStatusBarIcons.isEnabled) {
+                            val targetHeight =
+                                view.context.resources.getDimensionPixelSize(
+                                    R.dimen.status_bar_mobile_signal_size
+                                )
+                            if (iconView.layoutParams.height != targetHeight) {
+                                iconView.layoutParams.height = targetHeight
+                                layoutHeightChanged = true
+                            }
+                        }
                     } else {
                         iconView.setImageDrawable(mobileDrawable)
                         mobileDrawable.level = packedSignalDrawableState
+                        if (NewStatusBarIcons.isEnabled) {
+                            val targetHeight =
+                                view.context.resources.getDimensionPixelSize(
+                                    R.dimen.status_bar_mobile_signal_size_updated
+                                )
+                            if (iconView.layoutParams.height != targetHeight) {
+                                iconView.layoutParams.height = targetHeight
+                                layoutHeightChanged = true
+                            }
+                        }
                     }
                     viewModel.verboseLogger?.logBinderSignalIconResult(
                         parentView = view,
@@ -271,7 +300,7 @@ object MobileIconBinderKairos {
                     )
                     IconViewBinder.bind(newIcon.icon, iconView)
                 }
-                if (shouldRequestLayout) {
+                if (shouldRequestLayout || layoutHeightChanged) {
                     iconView.requestLayout()
                 }
             }

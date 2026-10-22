@@ -28,6 +28,7 @@ import com.android.systemui.res.R
 import com.android.systemui.statusbar.StatusBarIconView
 import com.android.systemui.statusbar.core.NewStatusBarIcons
 import com.android.systemui.statusbar.pipeline.shared.ui.view.ModernStatusBarView
+import com.android.systemui.statusbar.pipeline.wifi.ui.WifiIconLoader
 import com.android.systemui.statusbar.pipeline.wifi.ui.binder.WifiViewBinder
 import com.android.systemui.statusbar.pipeline.wifi.ui.viewmodel.LocationBasedWifiViewModel
 
@@ -81,8 +82,13 @@ class ModernStatusBarWifiView(context: Context, attrs: AttributeSet?) :
             iconView.adjustViewBounds = true
             val lp = iconView.layoutParams
             lp.width = ViewGroup.LayoutParams.WRAP_CONTENT
-            lp.height =
-                resources.getDimensionPixelSize(R.dimen.status_bar_wifi_signal_height_updated)
+            val wifiHeightRes =
+                if (WifiIconLoader.hasOverlayIcons(context)) {
+                    R.dimen.status_bar_wifi_signal_size
+                } else {
+                    R.dimen.status_bar_wifi_signal_height_updated
+                }
+            lp.height = resources.getDimensionPixelSize(wifiHeightRes)
 
             // New status bar icons have a single 3sp spacing defined
             (requireViewById<AlphaOptimizedLinearLayout>(R.id.wifi_group).layoutParams
