@@ -1298,8 +1298,6 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
 
         addAlgorithmSpecificParameters(params);
 
-        params.add(KeyStore2ParameterUtils.makeBool(KeymasterDefs.KM_TAG_NO_AUTH_REQUIRED));
-
         return params;
     }
 
