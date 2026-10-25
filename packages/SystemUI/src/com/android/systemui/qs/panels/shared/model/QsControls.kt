@@ -100,6 +100,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.android.compose.ui.graphics.drawInOverlay
 import com.android.systemui.brightness.ui.viewmodel.BrightnessSliderViewModel
 import com.android.systemui.qs.panels.shared.model.QSControl
 import com.android.systemui.qs.panels.shared.model.QSControlSpan
@@ -136,7 +137,15 @@ fun QSControlContent(
         val size = DpSize(maxWidth, maxHeight)
         val shape = RoundedCornerShape(qsControlCornerRadius(control, size))
         val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f)
-        Box(Modifier.fillMaxSize().clip(shape).background(trackColor)) {
+        val keepBrightnessControlVisible =
+            control == QSControl.BRIGHTNESS && brightnessViewModel.showMirror
+        Box(
+            Modifier
+                .then(if (keepBrightnessControlVisible) Modifier.drawInOverlay() else Modifier)
+                .fillMaxSize()
+                .clip(shape)
+                .background(trackColor)
+        ) {
             when (control) {
                 QSControl.BRIGHTNESS ->
                     BrightnessTileContent(
