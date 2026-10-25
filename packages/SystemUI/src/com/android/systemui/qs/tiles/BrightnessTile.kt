@@ -27,6 +27,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -67,6 +69,7 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.internal.logging.MetricsLogger
@@ -321,6 +324,7 @@ fun TileGlassSliderCore(
     painter: Painter,
     isVertical: Boolean,
 ) {
+    val view = LocalView.current
     var dragFraction by remember { mutableStateOf<Float?>(null) }
     val rawFraction = ((value - valueRange.start) /
             (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
@@ -334,6 +338,20 @@ fun TileGlassSliderCore(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
+            .pointerInput(enabled) {
+                if (!enabled) return@pointerInput
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    view.parent?.requestDisallowInterceptTouchEvent(true)
+                    try {
+                        do {
+                            val event = awaitPointerEvent()
+                        } while (event.changes.any { it.pressed })
+                    } finally {
+                        view.parent?.requestDisallowInterceptTouchEvent(false)
+                    }
+                }
+            }
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
             .pointerInput(enabled, isVertical, valueRange) {
