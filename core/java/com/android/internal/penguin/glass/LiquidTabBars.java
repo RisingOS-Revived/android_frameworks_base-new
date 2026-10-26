@@ -32,6 +32,7 @@ public final class LiquidTabBars {
 
     private static final String[] DISABLED_PACKAGES = {
             "com.google.android.apps.photos",
+            "com.google.android.GoogleCamera",
     };
 
     private static final String[] BAR_CLASSES = {
