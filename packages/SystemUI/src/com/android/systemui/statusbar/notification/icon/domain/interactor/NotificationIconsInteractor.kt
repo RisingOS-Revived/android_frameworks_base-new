@@ -20,6 +20,7 @@ import android.graphics.drawable.Icon
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.deviceentry.domain.interactor.DeviceEntryBypassInteractor
+import com.android.systemui.edgeaurora.EdgeAuroraRepository
 import com.android.systemui.kairos.util.Either
 import com.android.systemui.kairos.util.mergeSecond
 import com.android.systemui.statusbar.data.repository.NotificationListenerSettingsRepository
@@ -234,6 +235,7 @@ constructor(
     @Background bgContext: CoroutineContext,
     iconsInteractor: NotificationIconsInteractor,
     settingsRepository: NotificationListenerSettingsRepository,
+    edgeAuroraRepository: EdgeAuroraRepository = EdgeAuroraRepository(),
 ) {
     @OptIn(ExperimentalCoroutinesApi::class)
     val statusBarNotifs: Flow<Set<ActiveNotificationIconModel>> =
@@ -246,9 +248,9 @@ constructor(
                     showRepliedMessages = false,
                 )
             }
-            .map { notifs ->
+            .combine(edgeAuroraRepository.suppressedStatusBarNotificationKeys) { notifs, hiddenKeys ->
                 notifs
-                    .filter { it.statusBarIcon != null }
+                    .filter { it.statusBarIcon != null && it.notifKey !in hiddenKeys }
                     .distinctBy { it.statusBarIcon!!.toString() }
                     .toSet()
             }

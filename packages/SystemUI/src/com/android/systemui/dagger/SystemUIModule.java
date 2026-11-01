@@ -246,6 +246,7 @@ import javax.inject.Named;
         DreamModule.class,
         DoubleTapToSleepModule.class,
         EventLogModule.class,
+        com.android.systemui.edgeaurora.EdgeAuroraModule.class,
         FalsingModule.class,
         FlagsModule.class,
         FlagDependenciesModule.class,

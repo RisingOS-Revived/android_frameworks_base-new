@@ -134,6 +134,12 @@ public class SystemSettings {
                 Settings.System.MIN_REFRESH_RATE,
                 Settings.System.ACCESSIBILITY_FORCE_INVERT_COLOR_OVERRIDE_PACKAGES_TO_DISABLE
         ));
+        settings.addAll(List.of("edge_aurora_profiles", "edge_aurora_lock_screen", "edge_aurora_wake",
+                "edge_aurora_brightness", "edge_aurora_timeout", "edge_aurora_clock",
+                "edge_aurora_auto_peek", "edge_aurora_peek_timeout", "edge_aurora_open_action",
+                "edge_aurora_popup_blur",
+                "edge_aurora_quiet_apps", "edge_aurora_only_edge",
+                "edge_aurora_recent_colors", "edge_aurora_enabled"));
         return settings.toArray(new String[0]);
     }
 }

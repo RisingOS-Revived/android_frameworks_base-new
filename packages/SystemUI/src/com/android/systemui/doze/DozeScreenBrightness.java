@@ -122,6 +122,13 @@ public class DozeScreenBrightness extends BroadcastReceiver implements DozeMachi
     private boolean mScreenOff = false;
     private int mLastSensorValue = -1;
     private DozeMachine.State mState = DozeMachine.State.UNINITIALIZED;
+    private final DozeHost.Callback mAuroraCallback = new DozeHost.Callback() {
+        @Override
+        public void onAuroraPulseChanged() {
+            resetBrightnessToDefault();
+            updateBrightnessAndReady(true);
+        }
+    };
 
     /**
      * Debug value used for emulating various display brightness buckets:
@@ -204,6 +211,7 @@ public class DozeScreenBrightness extends BroadcastReceiver implements DozeMachi
         mState = newState;
         switch (newState) {
             case INITIALIZED:
+                mDozeHost.addCallback(mAuroraCallback);
                 startListeningForWallpaperSupportsAmbientMode();
                 resetBrightnessToDefault();
                 break;
@@ -239,7 +247,7 @@ public class DozeScreenBrightness extends BroadcastReceiver implements DozeMachi
                 setLightSensorEnabled(false);
                 break;
             case FINISH:
-                onDestroy();
+                destroy();
                 break;
         }
         if (newState != DozeMachine.State.FINISH) {
@@ -248,7 +256,9 @@ public class DozeScreenBrightness extends BroadcastReceiver implements DozeMachi
         }
     }
 
-    private void onDestroy() {
+    @Override
+    public void destroy() {
+        mDozeHost.removeCallback(mAuroraCallback);
         stopListeningForWallpaperSupportsAmbientMode();
         setLightSensorEnabled(false);
         mDevicePostureController.removeCallback(mDevicePostureCallback);
@@ -270,6 +280,7 @@ public class DozeScreenBrightness extends BroadcastReceiver implements DozeMachi
     }
 
     public void updateBrightnessAndReady(boolean force) {
+        if (applyAuroraBrightness()) return;
         if (force || mRegistered || mDebugBrightnessBucket != -1) {
             int sensorValue = mDebugBrightnessBucket == -1
                     ? mLastSensorValue : mDebugBrightnessBucket;
@@ -358,6 +369,7 @@ public class DozeScreenBrightness extends BroadcastReceiver implements DozeMachi
     }
 
     private void resetBrightnessToDefault() {
+        if (applyAuroraBrightness()) return;
         mDozeService.setDozeScreenBrightness(clampToDimBrightnessForScreenOff(
                 clampToUserSetting(getDozeBrightnessValue())));
         mDozeHost.setAodDimmingScrim(0f);
@@ -388,6 +400,15 @@ public class DozeScreenBrightness extends BroadcastReceiver implements DozeMachi
             return mDefaultPulseBrightness;
         }
         return brightnessInt / 255f;
+    }
+
+    private boolean applyAuroraBrightness() {
+        final float brightness = mDozeHost.getAuroraPulseBrightness();
+        if (brightness < 0f) return false;
+        mDozeService.setDozeScreenBrightness(brightness);
+        mDozeHost.setAodDimmingScrim(0f);
+        mDozeHost.setAodWallpaperDimmingScrim(0f);
+        return true;
     }
 
     private float clampToUserSetting(float brightness) {
