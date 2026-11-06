@@ -18,7 +18,6 @@ package com.android.systemui.keyguard.ui.view.layout.sections
 import android.content.Context
 import android.os.UserHandle
 import android.provider.Settings
-import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.constraintlayout.widget.Barrier
@@ -28,6 +27,7 @@ import com.android.systemui.keyguard.shared.model.KeyguardSection
 import com.android.systemui.keyguard.ui.viewmodel.KeyguardClockViewModel
 import com.android.systemui.plugins.keyguard.ui.clocks.ClockViewIds
 import com.android.systemui.res.R
+import com.android.systemui.lockscreen.ExtraInfoWidgetsController
 import com.android.systemui.shared.R as sharedR
 import javax.inject.Inject
 
@@ -36,6 +36,7 @@ class InfoWidgetsSection
 constructor(
     private val context: Context,
     private val keyguardClockViewModel: KeyguardClockViewModel,
+    private val infoWidgetsController: ExtraInfoWidgetsController,
 ) : KeyguardSection() {
     
     private var infoWidgetsView: View? = null
@@ -46,11 +47,7 @@ constructor(
             (existingView.parent as? ViewGroup)?.removeView(existingView)
         }
         
-        infoWidgetsView = LayoutInflater.from(context).inflate(
-            R.layout.keyguard_info_widgets,
-            constraintLayout,
-            false
-        ).apply {
+        infoWidgetsView = infoWidgetsController.createView(context).apply {
             id = R.id.keyguard_info_widgets
             layoutParams = ConstraintLayout.LayoutParams(
                 ConstraintLayout.LayoutParams.MATCH_PARENT,
@@ -97,6 +94,7 @@ constructor(
 
             connect(R.id.keyguard_info_widgets, ConstraintSet.TOP, topAnchor, ConstraintSet.BOTTOM, 12)
 
+            setVisibilityMode(R.id.keyguard_info_widgets, ConstraintSet.VISIBILITY_MODE_IGNORE)
             constrainHeight(R.id.keyguard_info_widgets, ConstraintSet.WRAP_CONTENT)
             constrainWidth(R.id.keyguard_info_widgets, ConstraintSet.MATCH_CONSTRAINT)
             setMargin(R.id.keyguard_info_widgets, ConstraintSet.START, 0)

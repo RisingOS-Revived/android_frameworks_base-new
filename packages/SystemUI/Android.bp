@@ -496,6 +496,7 @@ android_library {
         "ax_compose",
         "LunarisClockMaker",
         "LunarisLockscreenWidgets",
+        "LunarisExtraInfoWidgets",
         "ax_blur",
         "SystemUI-res",
         "WifiTrackerLib",
