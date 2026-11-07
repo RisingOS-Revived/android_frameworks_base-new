@@ -101,7 +101,7 @@ constructor(
 
     suspend fun loadImage(@DrawableRes resId: Int, context: Context): Icon.Loaded? {
         val androidIcon = AndroidIcon.createWithResource(context, resId)
-        val drawable = imageLoader.loadDrawable(androidIcon, context) ?: return null
+        val drawable = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { imageLoader.loadIconDrawable(androidIcon, context) } ?: return null
         return drawable.asIcon(null, resId)
     }
 
