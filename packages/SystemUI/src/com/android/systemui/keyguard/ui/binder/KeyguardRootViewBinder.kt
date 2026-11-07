@@ -81,6 +81,7 @@ import kotlinx.coroutines.DisposableHandle
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import org.lunaris.extrainfowidgets.ExtraInfoFreeformView
 
 /** Bind keyguard UI to run whenever the keyguard view is attached. */
 object KeyguardRootViewBinder {
@@ -202,6 +203,7 @@ object KeyguardRootViewBinder {
                             childViews[sliceViewId]?.alpha = alpha
                             childViews[weatherAreaId]?.alpha = alpha
                             childViews[R.id.keyguard_app_widgets]?.alpha = alpha
+                            childViews[R.id.keyguard_independent_info_widgets]?.alpha = alpha
                         }
                     }
 
@@ -231,6 +233,9 @@ object KeyguardRootViewBinder {
                             childViews[sliceViewId]?.translationY = y
                             childViews[weatherAreaId]?.translationY = y
                             childViews[R.id.keyguard_app_widgets]?.translationY = y
+                            childViews[R.id.keyguard_independent_info_widgets]?.let {
+                                (it as? ExtraInfoFreeformView)?.burnInOffsetY = y
+                            }
                             childViews[largeClockId]?.translationY = y
                             childViews[largeClockDateId]?.translationY = y
                             childViews[aodPromotedNotificationId]?.translationY = y
@@ -247,6 +252,9 @@ object KeyguardRootViewBinder {
                                     childViews[burnInLayerId]?.translationX = px
                                     childViews[sliceViewId]?.translationX = px
                                     childViews[weatherAreaId]?.translationX = px
+                                    childViews[R.id.keyguard_independent_info_widgets]?.let {
+                                        (it as? ExtraInfoFreeformView)?.burnInOffsetX = px
+                                    }
                                     childViews[aodPromotedNotificationId]?.translationX = px
                                     childViews[aodNotificationIconContainerId]?.translationX = px
                                 }
@@ -486,6 +494,7 @@ object KeyguardRootViewBinder {
 
         private fun isUserVisible(view: View): Boolean {
             return view.id != burnInLayerId &&
+                view.id != R.id.keyguard_independent_info_widgets &&
                 view.id != R.id.ax_dynamic_bar_keyguard_dismiss_area &&
                 view.visibility == VISIBLE &&
                 view.width > 0 &&
