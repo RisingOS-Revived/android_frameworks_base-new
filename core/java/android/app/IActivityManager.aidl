@@ -1123,12 +1123,5 @@ interface IActivityManager {
     void provisionDuckRkp();
     void setSpoofTrickyStoreKeyBox(String keybox);
 
-    /**
-     *  Should disable touch if three fingers swipe enabled
-     */
-    boolean isThreeFingersSwipeActive();
-    void setThreeFingersSwipeActive(boolean active);
-    void setThreeGestureStateActive(boolean active);
-
     void releaseMemory(int minAdj, int maxKillCount, boolean includeUIProcesses, boolean skipCamera);
 }
