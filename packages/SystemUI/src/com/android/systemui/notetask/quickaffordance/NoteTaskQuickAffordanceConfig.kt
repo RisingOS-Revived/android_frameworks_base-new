@@ -118,11 +118,11 @@ constructor(
                         isShortcutSelectedOrDefaultEnabled
                 }
                 if (
-                    isUserUnlocked &&
+                    isEnabled &&
+                        isUserUnlocked &&
+                        isDefaultNotesAppSet &&
                         isShortcutSelectedOrDefaultEnabled &&
-                        lockscreenNoteTakingAvailability.isLockscreenNoteTakingEnabled() &&
-                        ((isEnabled && isDefaultNotesAppSet) ||
-                            controller.createKeepNoteIntent() != null)
+                        lockscreenNoteTakingAvailability.isLockscreenNoteTakingEnabled()
                 ) {
                     val contentDescription = ContentDescription.Resource(pickerNameResourceId)
                     val icon = Icon.Resource(pickerIconResourceId, contentDescription)
@@ -138,9 +138,13 @@ constructor(
         if (!lockscreenNoteTakingAvailability.shouldShowNotesInLockscreenShortcutPicker()) {
             return PickerScreenState.UnavailableOnDevice
         }
+        val isDefaultNotesAppSet =
+            noteTaskInfoResolver.resolveInfo(
+                QUICK_AFFORDANCE,
+                user = userResolver.getUserForHandlingNoteTaking(QUICK_AFFORDANCE),
+            ) != null
         return when {
-            hasDefaultNotesApp() || controller.createKeepNoteIntent() != null ->
-                PickerScreenState.Default()
+            isEnabled && isDefaultNotesAppSet -> PickerScreenState.Default()
             isEnabled -> {
                 PickerScreenState.Disabled(
                     explanation =
@@ -162,21 +166,9 @@ constructor(
     }
 
     override fun onTriggered(expandable: Expandable?): OnTriggeredResult {
-        if (!hasDefaultNotesApp()) {
-            controller.createKeepNoteIntent()?.let { intent ->
-                return OnTriggeredResult.StartActivity(intent = intent, canShowWhileLocked = true)
-            }
-        }
         controller.showNoteTask(entryPoint = QUICK_AFFORDANCE)
         return OnTriggeredResult.Handled(true)
     }
-
-    private fun hasDefaultNotesApp(): Boolean =
-        isEnabled &&
-            noteTaskInfoResolver.resolveInfo(
-                QUICK_AFFORDANCE,
-                user = controller.getUserForHandlingNotesTaking(QUICK_AFFORDANCE),
-            ) != null
 }
 
 private fun UserManager.createUserUnlockedFlow(monitor: KeyguardUpdateMonitor) = callbackFlow {
