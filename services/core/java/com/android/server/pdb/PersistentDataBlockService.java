@@ -252,7 +252,8 @@ public class PersistentDataBlockService extends SystemService {
                 allowedUid = mContext.getPackageManager().getPackageUidAsUser(
                         allowedPackage, PackageManager.MATCH_SYSTEM_ONLY, mainUserId);
             } catch (PackageManager.NameNotFoundException e) {
-                // expected
+                // not expected
+                Slog.e(TAG, "not able to find package " + allowedPackage, e);
             }
         }
         return allowedUid;
