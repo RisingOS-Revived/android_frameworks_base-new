@@ -32,6 +32,8 @@ internal object ClockGlassWallpaper {
     private val cache = LruCache<Key, Cached>(2)
     private val loading = mutableSetOf<Key>()
     private val attempted = mutableSetOf<Key>()
+    private val failures = mutableMapOf<Key, Int>()
+    private const val MAX_RETRIES = 3
     private val listeners = mutableSetOf<Runnable>()
     private var generation = 0
     private var manager: WallpaperManager? = null
@@ -52,6 +54,7 @@ internal object ClockGlassWallpaper {
     private fun reset() {
         generation++
         attempted.clear()
+        failures.clear()
     }
 
     fun listen(context: Context, listener: Runnable) {
@@ -74,11 +77,19 @@ internal object ClockGlassWallpaper {
         listeners.remove(listener)
     }
 
-    fun get(context: Context, user: Int, requestedBlurRadii: IntArray): ClockGlass? {
+    private fun keyFor(context: Context, user: Int): Key {
         val metrics = context.resources.displayMetrics
-        val key =
-            Key(user, metrics.widthPixels.coerceAtLeast(1), metrics.heightPixels.coerceAtLeast(1),
-                runCatching { context.display?.displayId ?: 0 }.getOrDefault(0))
+        return Key(user, metrics.widthPixels.coerceAtLeast(1), metrics.heightPixels.coerceAtLeast(1),
+            runCatching { context.display?.displayId ?: 0 }.getOrDefault(0))
+    }
+
+    fun isPending(context: Context, user: Int): Boolean {
+        val key = keyFor(context, user)
+        return key in loading || (cache.get(key) == null && key !in attempted)
+    }
+
+    fun get(context: Context, user: Int, requestedBlurRadii: IntArray): ClockGlass? {
+        val key = keyFor(context, user)
         val cached = cache.get(key)
         if (cached?.generation == generation) return cached.material
         if (key in loading || !attempted.add(key)) return cached?.material
@@ -98,17 +109,28 @@ internal object ClockGlassWallpaper {
                     .onFailure { Log.w("ClockGlass", "Cannot prepare wallpaper fill", it) }
             main.post {
                 loading.remove(key)
-                if (result.isSuccess) {
-                    val material = result.getOrNull()
-                    if (material != null) {
-                        cache.put(key, Cached(version, material))
-                        attempted.remove(key)
-                    } else if (version == generation) cache.remove(key)
-                }
+                val material = result.getOrNull()
+                if (material != null) {
+                    cache.put(key, Cached(version, material))
+                    attempted.remove(key)
+                    failures.remove(key)
+                } else if (result.isFailure) {
+                    scheduleRetry(key)
+                } else if (version == generation) cache.remove(key)
                 listeners.toList().forEach { it.run() }
             }
         }
         return cached?.material
+    }
+
+    private fun scheduleRetry(key: Key) {
+        val count = (failures[key] ?: 0) + 1
+        failures[key] = count
+        if (count > MAX_RETRIES) return
+        main.postDelayed({
+            attempted.remove(key)
+            listeners.toList().forEach { it.run() }
+        }, 1000L * count)
     }
 
     private fun decode(context: Context, width: Int, height: Int, display: Int): Bitmap? {
@@ -161,5 +183,14 @@ internal object ClockGlassWallpaper {
         } finally {
             raw.recycle()
         }
+    }
+}
+
+object ClockGlassPreload {
+    @JvmOverloads
+    fun warmUp(context: Context, userId: Int = context.userId,
+        blurRadii: IntArray = intArrayOf(ClockGlassStyle().blurRadius)) {
+        runCatching { ClockGlassWallpaper.get(context, userId, blurRadii) }
+            .onFailure { Log.w("ClockGlass", "Cannot preload glass wallpaper", it) }
     }
 }

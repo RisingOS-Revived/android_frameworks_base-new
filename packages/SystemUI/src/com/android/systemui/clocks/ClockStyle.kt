@@ -53,6 +53,7 @@ import org.lunaris.clockmaker.ClockDesignView
 import org.lunaris.clockmaker.ClockEffects
 import org.lunaris.clockmaker.ClockGlass
 import org.lunaris.clockmaker.ClockGlassController
+import org.lunaris.clockmaker.ClockGlassPreload
 import org.lunaris.clockmaker.ClockGlassStyle
 
 class ClockStyle @JvmOverloads constructor(
@@ -198,7 +199,18 @@ class ClockStyle @JvmOverloads constructor(
     override fun onFinishInflate() {
         super.onFinishInflate()
         clockStub = findViewById(R.id.clock_view_stub)
+        warmUpGlass()
         updateClockView()
+    }
+
+    private fun warmUpGlass(design: ClockDesign? = null) {
+        val radii = design?.elements
+            ?.filter { it.visible && it.glass }
+            ?.map { it.glassStyle.normalized().blurRadius }
+            ?.distinct()?.toIntArray()
+            ?.takeIf { it.isNotEmpty() }
+            ?: intArrayOf(ClockGlassStyle().blurRadius)
+        ClockGlassPreload.warmUp(context, ActivityManager.getCurrentUser(), radii)
     }
 
     override fun onAttachedToWindow() {
@@ -285,6 +297,7 @@ class ClockStyle @JvmOverloads constructor(
         when (key) {
             CLOCK_DESIGN_KEY -> {
                 clockDesign = ClockDesign.parse(newValue) ?: ClockDesign()
+                warmUpGlass(clockDesign)
                 (currentClockView as? ClockDesignView)?.let {
                     it.userId = ActivityManager.getCurrentUser()
                     it.setDesign(clockDesign)

@@ -281,7 +281,15 @@ class ClockDesignView @JvmOverloads constructor(context: Context, attrs: Attribu
         }
     }
 
+    private fun preloadGlass() {
+        if (appearance.dozing) return
+        val radii = design.elements.filter { it.visible && it.glass }
+            .map { it.glassStyle.normalized().blurRadius }.distinct().toIntArray()
+        if (radii.isNotEmpty()) ClockGlassWallpaper.get(context, userId, radii)
+    }
+
     private fun applyElements() {
+        preloadGlass()
         design.elements.forEachIndexed { index, element ->
             val view = getChildAt(index)
             view.visibility = if (element.visible &&

@@ -15,6 +15,7 @@ import android.os.Looper
 import android.util.Log
 import android.util.LruCache
 import java.util.concurrent.Executors
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.floor
@@ -29,8 +30,10 @@ class ClockGlass private constructor(val clear: Bitmap, private val referenceWid
     private val pending = mutableMapOf<Int, MutableSet<Runnable>>()
     private val failedBlurs = mutableSetOf<Int>()
 
+    private class BlurLookup(val blur: Blur?, val exact: Boolean)
+
     internal fun isBlurReady(style: ClockGlassStyle, ready: Runnable): Boolean =
-        requestBlur(style.blurRadius.coerceIn(0, 120), ready) != null
+        requestBlur(style.blurRadius.coerceIn(0, 120), ready).exact
 
     internal fun requestedBlurRadii(): IntArray = synchronized(this) {
         (blurs.snapshot().keys + pending.keys).toIntArray()
@@ -39,7 +42,7 @@ class ClockGlass private constructor(val clear: Bitmap, private val referenceWid
     internal fun shader(mask: Bitmap, style: ClockGlassStyle, tint: Int, date: Boolean,
         originX: Float, originY: Float, ready: Runnable): RuntimeShader? {
         val s = style.normalized()
-        val blur = requestBlur(s.blurRadius, ready) ?: return null
+        val blur = requestBlur(s.blurRadius, ready).blur ?: return null
         fun bitmapShader(bitmap: Bitmap) =
             BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply {
                 setFilterMode(BitmapShader.FILTER_MODE_LINEAR)
@@ -82,10 +85,15 @@ class ClockGlass private constructor(val clear: Bitmap, private val referenceWid
         }
     }
 
-    private fun requestBlur(radius: Int, ready: Runnable): Blur? {
-        return synchronized(this) {
-            if (radius in failedBlurs) return@synchronized null
-            blurs.get(radius) ?: run {
+    private fun nearestBlur(radius: Int): Blur? =
+        blurs.snapshot().entries.minByOrNull { abs(it.key - radius) }?.value
+
+    private fun requestBlur(radius: Int, ready: Runnable): BlurLookup = synchronized(this) {
+        val exact = blurs.get(radius)
+        if (exact != null) {
+            BlurLookup(exact, true)
+        } else {
+            if (radius !in failedBlurs) {
                 val waiting = pending[radius]
                 if (waiting != null) waiting.add(ready) else {
                     pending[radius] = mutableSetOf(ready)
@@ -101,14 +109,14 @@ class ClockGlass private constructor(val clear: Bitmap, private val referenceWid
                         main.post { callbacks.forEach { it.run() } }
                     }
                 }
-                null
             }
+            BlurLookup(nearestBlur(radius), false)
         }
     }
 
     fun surfaceShader(style: ClockGlassStyle, tint: Int, ready: Runnable): RuntimeShader? {
         val s = style.normalized()
-        val blur = requestBlur(s.blurRadius, ready) ?: return null
+        val blur = requestBlur(s.blurRadius, ready).blur ?: return null
         fun bitmapShader(bitmap: Bitmap) =
             BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply {
                 setFilterMode(BitmapShader.FILTER_MODE_LINEAR)

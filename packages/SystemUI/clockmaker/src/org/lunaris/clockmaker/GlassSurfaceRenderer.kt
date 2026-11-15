@@ -16,7 +16,7 @@ import android.view.ViewTreeObserver
 
 class GlassSurfaceRenderer(private val host: View) : ViewTreeObserver.OnPreDrawListener {
     private data class Entry(val material: ClockGlass, val style: ClockGlassStyle, val tint: Int,
-        val shader: RuntimeShader)
+        val shader: RuntimeShader, val exact: Boolean)
 
     private val entries = mutableMapOf<String, Entry>()
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -80,6 +80,11 @@ class GlassSurfaceRenderer(private val host: View) : ViewTreeObserver.OnPreDrawL
         observe()
         prepareMaterial()
     }
+
+    /** True while glass is enabled but the wallpaper material is still loading; callers should skip their solid fallback fill. */
+    val isAwaitingMaterial: Boolean
+        get() = enabled && !failed && !preview && host.isAttachedToWindow && material() == null &&
+            ClockGlassWallpaper.isPending(host.context, userId)
 
     private fun material(): ClockGlass? = if (preview) previewMaterial
         else ClockGlassWallpaper.get(host.context, userId, blurRadii)
@@ -166,10 +171,12 @@ class GlassSurfaceRenderer(private val host: View) : ViewTreeObserver.OnPreDrawL
         val material = material() ?: return false
         try {
             val s = style.normalized()
+            val exact = material.isBlurReady(s, ready)
             val cached = entries[id]
-            val entry = if (cached?.material === material && cached.style == s && cached.tint == tint) cached else {
+            val entry = if (cached != null && cached.material === material && cached.style == s &&
+                cached.tint == tint && (cached.exact || !exact)) cached else {
                 val shader = material.surfaceShader(s, tint, ready)
-                if (shader != null) Entry(material, s, tint, shader).also { entries[id] = it }
+                if (shader != null) Entry(material, s, tint, shader, exact).also { entries[id] = it }
                 else cached?.takeIf { it.style == s && it.tint == tint } ?: return false
             }
             if (!map(entry.material)) return false

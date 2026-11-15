@@ -53,6 +53,8 @@ class ClockGlassController(private val host: View) :
         private var tint = 0
         private var failed = false
         private var applied = false
+        private var hiding = false
+        private var exactBlur = false
         private var dirty = true
         private val extentPoints = FloatArray(4)
         val matrix = Matrix()
@@ -69,11 +71,24 @@ class ClockGlassController(private val host: View) :
         }
 
         fun restore() {
-            if (!applied) return
+            if (!applied && !hiding) return
             if (view is ClockOutlineTextView) view.glassFill = null else view.overlay.remove(drawable)
             view.paint.shader = originalShader
             view.setShadowLayer(originalShadow[0], originalShadow[1], originalShadow[2], originalShadowColor)
             applied = false
+            hiding = false
+            view.invalidate()
+        }
+
+        fun hide() {
+            if (failed || applied || hiding) return
+            if (view is ClockOutlineTextView) {
+                view.glassFill = { _, _ -> }
+            } else {
+                view.paint.shader = hidden
+                view.setShadowLayer(0f, 0f, 0f, 0)
+            }
+            hiding = true
             view.invalidate()
         }
 
@@ -100,6 +115,7 @@ class ClockGlassController(private val host: View) :
             layout = null
             text = null
             failed = false
+            exactBlur = false
         }
 
         private fun fail(error: Throwable) {
@@ -126,8 +142,8 @@ class ClockGlassController(private val host: View) :
         }
 
         fun prepare(requestedBackground: ClockGlass): Boolean {
-            val background = if (requestedBackground.isBlurReady(style, ready)) requestedBackground
-                else this.background ?: return false
+            val exactNow = requestedBackground.isBlurReady(style, ready)
+            val background = requestedBackground
             val currentLayout = view.layout ?: return false
             val currentText = view.text.toString()
             val width = (view.width - view.compoundPaddingLeft - view.compoundPaddingRight)
@@ -140,9 +156,10 @@ class ClockGlassController(private val host: View) :
                 !maskPaint.equalsForTextMeasurement(view.paint) ||
                 viewport.left != left || viewport.top != top ||
                 viewport.width() != width || viewport.height() != height
-            val changed = maskChanged || this.background !== background || tint != view.currentTextColor
+            val changed = maskChanged || this.background !== background || tint != view.currentTextColor ||
+                (exactNow && !exactBlur)
             if (!changed && (failed || shader != null)) return !failed && shader != null
-            restore()
+            if (applied) restore()
             paint.shader = null
             shader = null
             outlineShader = null
@@ -190,6 +207,7 @@ class ClockGlassController(private val host: View) :
                 val bitmap = mask ?: return false
                 val material = background.shader(bitmap, style, tint, date, maskLeft, maskTop, ready) ?: return false
                 shader = material
+                exactBlur = exactNow
                 dirty = true
                 outlineShader = if (view is ClockOutlineTextView) {
                     background.shader(bitmap, style, tint, date, maskLeft, maskTop, ready)?.apply {
@@ -239,6 +257,7 @@ class ClockGlassController(private val host: View) :
                 drawable.setBounds(0, 0, view.width, view.height)
             }
             applied = true
+            hiding = false
             dirty = false
             view.invalidate()
         }
@@ -366,7 +385,8 @@ class ClockGlassController(private val host: View) :
             ClockGlassWallpaper.get(host.context, userId, blurRadii)
         }
         if (background == null) {
-            entries.forEach { it.restore() }
+            val loading = enabled && !preview && ClockGlassWallpaper.isPending(host.context, userId)
+            entries.forEach { if (loading) it.hide() else it.restore() }
             return
         }
         entries.forEach { background.isBlurReady(it.style, changed) }
@@ -381,7 +401,10 @@ class ClockGlassController(private val host: View) :
         for (entry in entries) {
             val view = entry.view
             if (view.width <= 0 || view.height <= 0 || view.visibility != View.VISIBLE) continue
-            if (!entry.prepare(background)) continue
+            if (!entry.prepare(background)) {
+                entry.hide()
+                continue
+            }
             val material = entry.background ?: continue
             spaceToScreen.reset()
             space?.transformMatrixToGlobal(spaceToScreen)
