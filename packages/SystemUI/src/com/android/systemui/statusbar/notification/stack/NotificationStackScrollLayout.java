@@ -6288,7 +6288,7 @@ public class NotificationStackScrollLayout
     }
 
     public float getMotoCompactPreviewTopOffset() {
-        if (!isMotoCompactPreviewVisible()) return 0f;
+        if (!isMotoCompactPreviewVisible() || mAmbientState.getDozeAmount() > 0f) return 0f;
         final View root = getRootView();
         root.getLocationOnScreen(mTempInt2);
         final int rootTop = mTempInt2[1];
@@ -6302,6 +6302,103 @@ public class NotificationStackScrollLayout
         final float stackTop = SceneContainerFlag.isEnabled()
                 ? mAmbientState.getStackScrollTop() : mAmbientState.getTopPadding();
         return Math.max(0f, stackTop - previewTop);
+    }
+
+    private final java.util.WeakHashMap<ExpandableView, Float> mMotoAwakeScreenY =
+            new java.util.WeakHashMap<>();
+
+    void keepMotoNotificationsInPlaceWhileDozing(List<ExpandableView> children) {
+        if (mShelf == null || !mShelf.isMotoCompactDesignEnabled()
+                || mAmbientState.getFractionToShade() != 0f
+                || !(SceneContainerFlag.isEnabled() ? mIsOnLockscreen : onKeyguard())) {
+            mMotoAwakeScreenY.clear();
+            return;
+        }
+        getLocationOnScreen(mTempInt2);
+        final float hostTop = mTempInt2[1];
+        final float doze = mAmbientState.getDozeAmount();
+        for (ExpandableView child : children) {
+            keepMotoNotificationInPlace(child, hostTop, doze);
+        }
+        keepMotoNotificationInPlace(mShelf, hostTop, doze);
+    }
+
+    private void keepMotoNotificationInPlace(ExpandableView child, float hostTop, float doze) {
+        final ExpandableViewState state = child.getViewState();
+        if (doze == 0f) {
+            mMotoAwakeScreenY.put(child, hostTop + state.getYTranslation());
+        } else if (!(child instanceof ExpandableNotificationRow row && row.showingPulsing())
+                && !mAmbientState.isPulseExpanding()) {
+            final Float screenY = mMotoAwakeScreenY.get(child);
+            if (screenY != null) {
+                state.setYTranslation(screenY - hostTop, "Moto fade in place");
+            }
+        }
+    }
+
+    void positionAodNotificationPopup(List<ExpandableView> children) {
+        if (mShelf == null || !mShelf.isMotoCompactDesignEnabled()
+                || mAmbientState.isPulseExpanding()
+                || mAmbientState.getFractionToShade() != 0f) return;
+        final boolean preview = isMotoCompactPreviewVisible();
+        final boolean aod = mAmbientState.getDozeAmount() > 0f;
+        if (!aod) return;
+
+        float height = 0f;
+        int count = 0;
+        for (ExpandableView child : children) {
+            if (!(child instanceof ExpandableNotificationRow row)) continue;
+            if (!(preview && isMotoCompactNotificationSelected(child))
+                    && !(aod && row.showingPulsing())) continue;
+            height += child.getViewState().height;
+            if (count++ > 0) height += mPaddingBetweenElements;
+        }
+        if (count == 0) return;
+
+        final View root = getRootView();
+        getLocationOnScreen(mTempInt2);
+        final float hostTop = mTempInt2[1];
+        root.getLocationOnScreen(mTempInt2);
+        final float rootTop = mTempInt2[1];
+        final WindowInsets insets = root.getRootWindowInsets();
+        final int topInset = insets != null ? insets.getInsetsIgnoringVisibility(
+                WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()).top
+                : SystemBarUtils.getStatusBarHeight(mContext);
+        final int bottomInset = insets != null ? insets.getInsetsIgnoringVisibility(
+                WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()).bottom : 0;
+        final float safeTop = rootTop + topInset - hostTop + mPaddingBetweenElements;
+        final View icons = root.findViewById(R.id.aod_notification_icon_container);
+        float anchorTop;
+        if (areLockscreenNotificationsBottomAnchored()) {
+            anchorTop = rootTop - hostTop + mStackScrollAlgorithm
+                    .getLockscreenNotificationStack()
+                    .getAnchorBottomOnScreen(root.getHeight(), bottomInset)
+                    - mShelf.getIntrinsicHeight();
+        } else if (aod && icons != null && icons.isLaidOut() && icons.getHeight() > 0
+                && icons.getVisibility() != GONE) {
+            icons.getLocationOnScreen(mTempInt2);
+            anchorTop = mTempInt2[1] - hostTop;
+        } else {
+            anchorTop = mShelf.getTranslationY();
+        }
+        float y = calculateAodPopupTop(anchorTop, height, mPaddingBetweenElements, safeTop);
+        final float amount = preview ? 1f : mAmbientState.getDozeAmount();
+        for (ExpandableView child : children) {
+            if (!(child instanceof ExpandableNotificationRow row)) continue;
+            if (!(preview && isMotoCompactNotificationSelected(child))
+                    && !(aod && row.showingPulsing())) continue;
+            final ExpandableViewState state = child.getViewState();
+            state.setYTranslation(MathUtils.lerp(state.getYTranslation(), y, amount),
+                    "AOD popup above icon stack");
+            state.clipTopAmount = 0;
+            state.clipBottomAmount = 0;
+            y += state.height + mPaddingBetweenElements;
+        }
+    }
+
+    @VisibleForTesting
+    static float calculateAodPopupTop(float anchorTop, float height, float gap, float safeTop) {
+        return Math.max(safeTop, anchorTop - gap - height);
     }
 
     private void requestAnimateLockscreenNotificationStack() {
@@ -6473,6 +6570,7 @@ public class NotificationStackScrollLayout
 
     @Override
     protected void onDetachedFromWindow() {
+        mMotoAwakeScreenY.clear();
         finishMotoCompactSelection();
         super.onDetachedFromWindow();
     }

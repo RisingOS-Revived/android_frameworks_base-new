@@ -18,6 +18,8 @@ package com.android.systemui.keyguard.ui.composable.elements
 
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -96,8 +98,8 @@ constructor(
 
         AnimatedVisibility(
             visibleState = transitionState,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            enter = fadeIn(tween(280, easing = CubicBezierEasing(0.22f, 0f, 0.18f, 1f))),
+            exit = fadeOut(tween(280, easing = CubicBezierEasing(0.22f, 0f, 0.18f, 1f))),
             modifier =
                 modifier
                     .height(dimensionResource(R.dimen.notification_shelf_height))

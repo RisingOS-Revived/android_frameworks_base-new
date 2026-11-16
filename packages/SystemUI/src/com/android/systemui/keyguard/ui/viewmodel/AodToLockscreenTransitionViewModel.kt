@@ -17,7 +17,7 @@
 package com.android.systemui.keyguard.ui.viewmodel
 
 import android.util.MathUtils
-import com.android.app.animation.Interpolators.FAST_OUT_SLOW_IN
+import com.android.systemui.keyguard.ui.animation.AodContentMotion
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.keyguard.domain.interactor.FromAodTransitionInteractor.Companion.TO_LOCKSCREEN_DURATION
 import com.android.systemui.keyguard.shared.model.Edge
@@ -48,6 +48,10 @@ constructor(shadeInteractor: ShadeInteractor, animationFlow: KeyguardTransitionA
 
     private var isShadeExpanded = false
 
+    private companion object {
+        val WAKE_INTERPOLATOR = AodContentMotion.UNLOCK_EASING
+    }
+
     /**
      * Begin the transition from wherever the y-translation value is currently. This helps ensure a
      * smooth transition if the prior transition was canceled.
@@ -57,7 +61,7 @@ constructor(shadeInteractor: ShadeInteractor, animationFlow: KeyguardTransitionA
         return transitionAnimation.sharedFlowWithState(
             duration = 500.milliseconds,
             onStart = { startValue = currentTranslationY() ?: 0f },
-            onStep = { MathUtils.lerp(startValue, 0f, FAST_OUT_SLOW_IN.getInterpolation(it)) },
+            onStep = { MathUtils.lerp(startValue, 0f, WAKE_INTERPOLATOR.getInterpolation(it)) },
         )
     }
 
@@ -70,7 +74,7 @@ constructor(shadeInteractor: ShadeInteractor, animationFlow: KeyguardTransitionA
         return transitionAnimation.sharedFlowWithState(
             duration = 500.milliseconds,
             onStart = { startValue = currentTranslationX() ?: 0f },
-            onStep = { MathUtils.lerp(startValue, 0f, FAST_OUT_SLOW_IN.getInterpolation(it)) },
+            onStep = { MathUtils.lerp(startValue, 0f, WAKE_INTERPOLATOR.getInterpolation(it)) },
         )
     }
 

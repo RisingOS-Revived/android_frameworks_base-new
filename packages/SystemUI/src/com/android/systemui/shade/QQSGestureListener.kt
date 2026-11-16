@@ -40,6 +40,19 @@ class QQSGestureListener @Inject constructor(
 
     private var doubleTapToSleepEnabled = false
     private val quickQsOffsetHeight: Int
+    private var firstTapWasAwake = false
+    private var doubleTapCanSleep = false
+
+    override fun onDown(e: MotionEvent): Boolean {
+        firstTapWasAwake = powerManager.isInteractive && !statusBarStateController.isDozing
+        return false
+    }
+
+    override fun onDoubleTap(e: MotionEvent): Boolean {
+        doubleTapCanSleep = firstTapWasAwake && powerManager.isInteractive &&
+            !statusBarStateController.isDozing
+        return false
+    }
 
     init {
         val contentObserver = object : ContentObserver(null) {
@@ -64,6 +77,7 @@ class QQSGestureListener @Inject constructor(
         // or lockscreen (keyguard showing, but not bouncer)
         if (
             e.actionMasked == MotionEvent.ACTION_UP &&
+                doubleTapCanSleep && powerManager.isInteractive &&
                 !statusBarStateController.isDozing &&
                 doubleTapToSleepEnabled &&
                 (e.getY() < quickQsOffsetHeight ||

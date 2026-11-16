@@ -38,6 +38,7 @@ import androidx.core.math.MathUtils
 import com.android.app.animation.Interpolators
 import com.android.internal.R
 import com.android.keyguard.KeyguardViewController
+import com.android.systemui.keyguard.ui.animation.AodContentMotion
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.flags.FeatureFlags
@@ -100,7 +101,7 @@ const val DISMISS_AMOUNT_EXIT_KEYGUARD_THRESHOLD = 0.3f
  * from a tap on the unlock icon, or from the bouncer. This is not relevant if the lockscreen is
  * swiped away via a touch gesture, or when it's flinging expanded/collapsed after a swipe.
  */
-const val UNLOCK_ANIMATION_DURATION_MS = 300L
+const val UNLOCK_ANIMATION_DURATION_MS = 450L
 
 /**
  * If there are two different wallpapers on home and lock screen, duration and delay of the lock
@@ -409,7 +410,7 @@ constructor(
         with(surfaceBehindEntryAnimator) {
             duration = UNLOCK_ANIMATION_DURATION_MS
             startDelay = UNLOCK_ANIMATION_SURFACE_BEHIND_START_DELAY_MS
-            interpolator = Interpolators.TOUCH_RESPONSE
+            interpolator = AodContentMotion.UNLOCK_EASING
             addUpdateListener { valueAnimator: ValueAnimator ->
                 surfaceBehindAlpha = valueAnimator.animatedValue as Float
                 setSurfaceBehindAppearAmount(valueAnimator.animatedValue as Float)
@@ -699,12 +700,8 @@ constructor(
                 unlockToLauncherWithInWindowAnimations()
             }
 
-            // If we're waking and unlocking to a non-Launcher app surface (or Launcher in-window
-            // animations are not available), show it immediately and end the remote animation. The
-            // circular light reveal will show the app surface, and it looks weird if it's moving
-            // around behind that.
             biometricUnlockControllerLazy.get().isWakeAndUnlock -> {
-                Log.d(TAG, "playCannedUnlockAnimation, isWakeAndUnlock")
+                surfaceBehindAlpha = 1f
                 setSurfaceBehindAppearAmount(1f)
                 keyguardViewMediator
                     .get()
@@ -715,6 +712,8 @@ constructor(
             // scale/translate the window underneath the lockscreen.
             else -> {
                 Log.d(TAG, "playCannedUnlockAnimation, surfaceBehindEntryAnimator#start")
+                surfaceBehindAlpha = 0f
+                setSurfaceBehindAppearAmount(0f)
                 surfaceBehindEntryAnimator.start()
             }
         }
@@ -957,13 +956,14 @@ constructor(
                 else -> surfaceBehindAlpha
             }
 
+        val spatialAmount = MathUtils.clamp(amount, 0f, 1f)
         surfacesBehind?.forEach { surface ->
             if (!KeyguardWmStateRefactor.isEnabled) {
                 val surfaceHeight: Int = surface.endState.bounds.height().toInt()
 
                 var scaleFactor =
                     (SURFACE_BEHIND_START_SCALE_FACTOR +
-                        (1f - SURFACE_BEHIND_START_SCALE_FACTOR) * MathUtils.clamp(amount, 0f, 1f))
+                        (1f - SURFACE_BEHIND_START_SCALE_FACTOR) * spatialAmount)
 
                 // If we're dismissing via swipe to the Launcher, we'll play in-window scale
                 // animations, so don't also scale the window.
@@ -978,7 +978,7 @@ constructor(
                 surfaceBehindMatrix.setTranslate(
                     surface.endState.bounds.left,
                     surface.endState.bounds.top +
-                        surfaceHeight * SURFACE_BEHIND_START_TRANSLATION_Y * (1f - amount),
+                        surfaceHeight * SURFACE_BEHIND_START_TRANSLATION_Y * (1f - spatialAmount),
                 )
 
                 // Scale up from a point at the center-bottom of the surface.

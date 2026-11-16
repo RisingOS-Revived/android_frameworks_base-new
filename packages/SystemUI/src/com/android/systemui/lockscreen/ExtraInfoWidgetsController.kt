@@ -14,6 +14,7 @@ import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.FrameLayout
+import com.android.systemui.keyguard.ui.animation.AodContentMotion
 import com.android.systemui.plugins.ActivityStarter
 import com.android.systemui.plugins.statusbar.StatusBarStateController
 import com.android.systemui.res.R
@@ -107,6 +108,10 @@ constructor(
             object : StatusBarStateController.StateListener {
                 override fun onDozingChanged(dozing: Boolean) {
                     updateSettings()
+                }
+
+                override fun onDozeAmountChanged(linear: Float, eased: Float) {
+                    applyAodFrame(linear)
                 }
 
                 override fun onStateChanged(newState: Int) {
@@ -300,7 +305,20 @@ constructor(
             )
         }
 
+        private fun applyAodFrame(linear: Float) {
+            val scale = AodContentMotion.widgetScale(AodContentMotion.progress(linear))
+            extra.scaleX = scale
+            extra.scaleY = scale
+            legacy.scaleX = scale
+            legacy.scaleY = scale
+            for (index in 0 until freeform.childCount) {
+                freeform.getChildAt(index).scaleX = scale
+                freeform.getChildAt(index).scaleY = scale
+            }
+        }
+
         private fun render() {
+            applyAodFrame(status.dozeAmount)
             freeform.contentVisible =
                 attached &&
                     enabled &&

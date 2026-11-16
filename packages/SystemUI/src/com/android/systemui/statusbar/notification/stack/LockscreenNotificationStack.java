@@ -97,10 +97,14 @@ class LockscreenNotificationStack {
         }
         // Like Now Playing, measure from the top of the full screen, independently of UDFPS.
         // At the lowest positions, leave room for the navigation area and screen edge.
-        final float screenBottom = Math.min(screenHeight * mAnchorPosition / 100f,
-                screenHeight - bottomInset - mBottomPadding);
+        final float screenBottom = getAnchorBottomOnScreen(screenHeight, bottomInset);
         mAnchorBottom = Math.max(stackTop, screenBottom - viewTop);
         return mAnchorBottom - stackTop;
+    }
+
+    float getAnchorBottomOnScreen(float screenHeight, float bottomInset) {
+        return Math.min(screenHeight * mAnchorPosition / 100f,
+                screenHeight - bottomInset - mBottomPadding);
     }
 
     float getBottom() {

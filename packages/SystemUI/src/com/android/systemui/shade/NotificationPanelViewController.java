@@ -879,7 +879,8 @@ public final class NotificationPanelViewController implements
                 if (mTripleTapToFreeformEnabled) {
                     // Wait for triple press otherwise go to sleep
                     mTripleTapArmed = true;
-                } else if (mDoubleTapToSleepEnabled && mPowerManager != null) {
+                } else if (mDoubleTapToSleepEnabled && mPowerManager != null
+                        && mPowerManager.isInteractive() && !mDozing && !mPulsing) {
                     mPowerManager.goToSleep(e.getEventTime());
                 }
                 return true;
@@ -2604,6 +2605,12 @@ public final class NotificationPanelViewController implements
     @Override
     public void setDozing(boolean dozing, boolean animate) {
         if (dozing == mDozing) return;
+        cancelDeferredDoubleTapSleep();
+        mTripleTapArmed = false;
+        final long now = mSystemClock.uptimeMillis();
+        final MotionEvent cancel = MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, 0f, 0f, 0);
+        mDoubleTapGesture.onTouchEvent(cancel);
+        cancel.recycle();
         mView.setDozing(dozing);
         mDozing = dozing;
         // TODO (b/) make listeners for this
@@ -4149,7 +4156,8 @@ public final class NotificationPanelViewController implements
                 mDeferredDoubleTapSleepRunnable = () -> {
                     mDeferredDoubleTapSleepRunnable = null;
                     mTripleTapArmed = false;
-                    if (mPowerManager != null) {
+                    if (mPowerManager != null && mPowerManager.isInteractive()
+                            && !mDozing && !mPulsing) {
                         mPowerManager.goToSleep(mSystemClock.uptimeMillis());
                     }
                 };

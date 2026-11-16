@@ -263,6 +263,15 @@ public class LockScreenWidgetsController implements OmniJawsClient.OmniJawsObser
             }
         }
         @Override
+        public void onDozeAmountChanged(float linear, float eased) {
+            final com.android.systemui.keyguard.ui.animation.AodContentMotion motion =
+                    com.android.systemui.keyguard.ui.animation.AodContentMotion.INSTANCE;
+            final float scale = motion.widgetScale(motion.progress(linear));
+            mView.setScaleX(scale);
+            mView.setScaleY(scale);
+        }
+
+        @Override
         public void onDozingChanged(boolean dozing) {
             if (mDozing == dozing) return;
             mDozing = dozing;

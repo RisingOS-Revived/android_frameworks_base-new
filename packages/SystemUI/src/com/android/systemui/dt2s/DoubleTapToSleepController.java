@@ -24,6 +24,9 @@ import android.window.WindowInfosListenerForTest.DisplayInfo;
 import android.window.WindowInfosListenerForTest.WindowInfo;
 
 import com.android.systemui.CoreStartable;
+import com.android.systemui.plugins.statusbar.StatusBarStateController;
+import com.android.systemui.statusbar.StatusBarState;
+import com.android.systemui.statusbar.policy.KeyguardStateController;
 import com.android.systemui.LauncherProxyService;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.dagger.qualifiers.Background;
@@ -91,6 +94,8 @@ public final class DoubleTapToSleepController implements CoreStartable, TunerSer
     private static final long SLEEP_DELAY_MS = 300;
 
     private final Context mContext;
+    private final StatusBarStateController mStatusBarStateController;
+    private final KeyguardStateController mKeyguardStateController;
     private final PowerManager mPowerManager;
     private final FalsingManager mFalsingManager;
     private final Handler mMainHandler;
@@ -133,6 +138,8 @@ public final class DoubleTapToSleepController implements CoreStartable, TunerSer
     public DoubleTapToSleepController(
             Context context,
             PowerManager powerManager,
+            StatusBarStateController statusBarStateController,
+            KeyguardStateController keyguardStateController,
             FalsingManager falsingManager,
             CommandQueue commandQueue,
             @Main Handler mainHandler,
@@ -143,6 +150,8 @@ public final class DoubleTapToSleepController implements CoreStartable, TunerSer
             Lazy<KeyguardUnlockAnimationController> keyguardUnlockAnimationController,
             Lazy<InWindowLauncherUnlockAnimationRepository> inWindowLauncherRepository) {
         mContext = context;
+        mStatusBarStateController = statusBarStateController;
+        mKeyguardStateController = keyguardStateController;
         mPowerManager = powerManager;
         mFalsingManager = falsingManager;
         mCommandQueue = commandQueue;
@@ -157,6 +166,23 @@ public final class DoubleTapToSleepController implements CoreStartable, TunerSer
 
     @Override
     public void start() {
+        mStatusBarStateController.addCallback(new StatusBarStateController.StateListener() {
+            @Override
+            public void onDozingChanged(boolean dozing) {
+                updateMonitoring();
+            }
+
+            @Override
+            public void onStateChanged(int state) {
+                updateMonitoring();
+            }
+        });
+        mKeyguardStateController.addCallback(new KeyguardStateController.Callback() {
+            @Override
+            public void onKeyguardShowingChanged() {
+                updateMonitoring();
+            }
+        });
         mTunerService.addTunable(this, DOUBLE_TAP_SLEEP_GESTURE);
 
         TaskStackChangeListeners.getInstance().registerTaskStackListener(
@@ -221,6 +247,10 @@ public final class DoubleTapToSleepController implements CoreStartable, TunerSer
      */
     private boolean canHandleGesture() {
         return mEnabled.get()
+                && mPowerManager.isInteractive()
+                && !mStatusBarStateController.isDozing()
+                && mStatusBarStateController.getState() == StatusBarState.SHADE
+                && !mKeyguardStateController.isShowing()
                 && mLauncherHomeForeground
                 && !mOverviewShown
                 && !mImeVisible
@@ -495,6 +525,7 @@ public final class DoubleTapToSleepController implements CoreStartable, TunerSer
     }
 
     private void triggerSleep() {
+        if (!canHandleGesture()) return;
         Log.d(TAG, "DT2S: goToSleep");
         try {
             mPowerManager.goToSleep(SystemClock.uptimeMillis());

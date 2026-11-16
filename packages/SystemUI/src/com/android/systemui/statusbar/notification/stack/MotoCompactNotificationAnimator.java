@@ -122,6 +122,10 @@ class MotoCompactNotificationAnimator {
         mRowBounds.set(left, top, left + row.getWidth() * row.getScaleX(),
                 top + row.getActualHeight() * row.getScaleY());
         if (mRowBounds.width() <= 0f || mRowBounds.height() <= 0f) return -1;
+        if (mCollapsing) {
+            return canvas.saveLayerAlpha(mRowBounds,
+                    Math.round(255f * MathUtils.saturate(mAmount)));
+        }
         interpolateBounds(mIconBounds, mRowBounds, mAmount, mRevealBounds);
 
         final int saveCount = canvas.save();

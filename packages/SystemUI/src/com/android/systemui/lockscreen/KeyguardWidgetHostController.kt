@@ -40,6 +40,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.android.systemui.Dependency
+import com.android.systemui.keyguard.ui.animation.AodContentMotion
+import com.android.systemui.plugins.statusbar.StatusBarStateController
 import com.android.systemui.plugins.ActivityStarter
 import com.android.systemui.plugins.FalsingManager
 import com.android.systemui.settings.UserTracker
@@ -70,6 +73,16 @@ class KeyguardWidgetHostController(
     private var trampolineJob: Job? = null
     private val handler = Handler(Looper.getMainLooper())
     private val scrim = ScrimUtils.get()
+    private val status = Dependency.get(StatusBarStateController::class.java)
+    private var dozeAmount = status.dozeAmount
+    private val dozeListener = object : StatusBarStateController.StateListener {
+        override fun onDozeAmountChanged(linear: Float, eased: Float) {
+            val wasVisible = AodContentMotion.awakeAlpha(dozeAmount) > 0f
+            dozeAmount = linear
+            applyAodFrame()
+            if (wasVisible != (AodContentMotion.awakeAlpha(dozeAmount) > 0f)) updateVisibility()
+        }
+    }
     private var attached = false
     private var switchingUser = false
     private var widgetDialog: SystemUIDialog? = null
@@ -85,7 +98,7 @@ class KeyguardWidgetHostController(
     private val views = mutableMapOf<Int, AppWidgetHostView>()
     private val remoteViews = mutableMapOf<Int, RemoteViews?>()
     private val interaction = RemoteViews.InteractionHandler { view, intent, response ->
-        if (!canShow() || falsingManager.isFalseTap(FalsingManager.LOW_PENALTY)) false
+        if (scrim.isDozing() || !canShow() || falsingManager.isFalseTap(FalsingManager.LOW_PENALTY)) false
         else {
             trampolineJob?.cancel()
             val options = response.getLaunchOptions(view)
@@ -147,6 +160,8 @@ class KeyguardWidgetHostController(
         }
         context.registerReceiverAsUser(receiver, UserHandle.ALL, IntentFilter(Intent.ACTION_USER_UNLOCKED),
             null, handler, Context.RECEIVER_NOT_EXPORTED)
+        dozeAmount = status.dozeAmount
+        status.addCallback(dozeListener)
         scrim.addListener(scrimListener)
         keyguardStateController.addCallback(keyguardCallback)
         userTracker.addCallback(userCallback, context.mainExecutor)
@@ -156,13 +171,21 @@ class KeyguardWidgetHostController(
 
     private fun canShow() = attached && !switchingUser && keyguardStateController.isShowing &&
         !keyguardStateController.isOccluded && !keyguardStateController.isKeyguardGoingAway &&
-        !scrim.isDozing() && awake &&
+        (awake || dozeAmount > 0f) && AodContentMotion.awakeAlpha(dozeAmount) > 0f &&
         !bouncer && !qsVisible && context.getSystemService(UserManager::class.java)
             .isUserUnlocked(UserHandle.of(userTracker.userId))
+
+    private fun applyAodFrame() {
+        body.alpha = AodContentMotion.awakeAlpha(dozeAmount)
+        val scale = AodContentMotion.widgetScale(AodContentMotion.progress(dozeAmount))
+        body.scaleX = scale
+        body.scaleY = scale
+    }
 
     private fun updateVisibility() {
         val show = canShow() && Settings.Secure.getIntForUser(context.contentResolver,
             WidgetContract.ENABLED, 0, userTracker.userId) != 0
+        applyAodFrame()
         container.visibility = if (show) View.VISIBLE else View.GONE
         if (show && client == null) {
             val userContext = context.createContextAsUser(UserHandle.of(userTracker.userId), 0)
@@ -310,6 +333,7 @@ class KeyguardWidgetHostController(
         handler.removeCallbacksAndMessages(null)
         context.contentResolver.unregisterContentObserver(observer)
         context.unregisterReceiver(receiver)
+        status.removeCallback(dozeListener)
         scrim.removeListener(scrimListener)
         keyguardStateController.removeCallback(keyguardCallback)
         userTracker.removeCallback(userCallback)

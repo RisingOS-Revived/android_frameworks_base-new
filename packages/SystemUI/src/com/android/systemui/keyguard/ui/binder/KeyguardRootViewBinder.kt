@@ -61,6 +61,7 @@ import com.android.systemui.log.core.Logger
 import com.android.systemui.log.dagger.KeyguardBlueprintLog
 import com.android.systemui.plugins.FalsingManager
 import com.android.systemui.plugins.keyguard.ui.clocks.ClockViewIds
+import com.android.systemui.keyguard.ui.animation.AodContentMotion
 import com.android.systemui.res.R
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.shade.domain.interactor.ShadeInteractor
@@ -79,7 +80,6 @@ import kotlin.math.min
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.DisposableHandle
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import org.lunaris.extrainfowidgets.ExtraInfoFreeformView
 
@@ -105,6 +105,7 @@ object KeyguardRootViewBinder {
     ): DisposableHandle {
         val disposables = DisposableHandles()
         val childViews = mutableMapOf<Int, View>()
+        var aodIconsFadingOut = false
 
         disposables +=
             view.onTouchListener { _, event ->
@@ -239,7 +240,9 @@ object KeyguardRootViewBinder {
                             childViews[largeClockId]?.translationY = y
                             childViews[largeClockDateId]?.translationY = y
                             childViews[aodPromotedNotificationId]?.translationY = y
-                            childViews[aodNotificationIconContainerId]?.translationY = y
+                            if (!aodIconsFadingOut) {
+                                childViews[aodNotificationIconContainerId]?.translationY = y
+                            }
                         }
                     }
 
@@ -326,11 +329,8 @@ object KeyguardRootViewBinder {
                     }
 
                     launch {
-                        val iconsAppearTranslationPx =
-                            configuration
-                                .getDimensionPixelSize(R.dimen.shelf_appear_translation)
-                                .stateIn(this)
                         viewModel.isNotifIconContainerVisible.collect { isVisible ->
+                            aodIconsFadingOut = !isVisible.value && isVisible.isAnimating
                             if (isVisible.value) {
                                 blueprintViewModel.refreshBlueprint()
                             }
@@ -504,32 +504,33 @@ object KeyguardRootViewBinder {
 
     private fun View.setAodNotifIconContainerIsVisible(isVisible: AnimatedValue<Boolean>) {
         animate().cancel()
-        val animatorListener =
-            object : AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: Animator) {
+        val target = if (isVisible.value) 1f else 0f
+        if (!isVisible.isAnimating) {
+            alpha = target
+            visibility = if (isVisible.value) VISIBLE else INVISIBLE
+            return
+        }
+        if (isVisible.value && visibility != VISIBLE) alpha = 0f
+        visibility = VISIBLE
+        animate()
+            .alpha(target)
+            .setStartDelay(0)
+            .setDuration((280L * kotlin.math.abs(target - alpha)).toLong().coerceAtLeast(1L))
+            .setInterpolator(AodContentMotion.UNLOCK_EASING)
+            .setListener(object : AnimatorListenerAdapter() {
+                private var cancelled = false
+                override fun onAnimationCancel(animation: Animator) {
+                    cancelled = true
                     isVisible.stopAnimating()
                 }
-            }
-        when {
-            !isVisible.isAnimating -> {
-                visibility =
-                    if (isVisible.value) {
-                        alpha = 1f
-                        VISIBLE
-                    } else {
-                        alpha = 0f
-                        INVISIBLE
+                override fun onAnimationEnd(animation: Animator) {
+                    if (!cancelled) {
+                        visibility = if (isVisible.value) VISIBLE else INVISIBLE
+                        isVisible.stopAnimating()
                     }
-            }
-
-            else -> {
-                if (isVisible.value) {
-                    CrossFadeHelper.fadeIn(this, animatorListener)
-                } else {
-                    CrossFadeHelper.fadeOut(this, animatorListener)
                 }
-            }
-        }
+            })
+            .start()
     }
 
     private fun View.setAodPromotedNotifIsVisible(isVisible: AnimatedValue<Boolean>) {

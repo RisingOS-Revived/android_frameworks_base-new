@@ -32,6 +32,7 @@ import android.view.View
 import android.widget.ImageView
 import android.widget.RelativeLayout
 import com.android.settingslib.drawable.CircleFramedDrawable
+import com.android.systemui.keyguard.ui.animation.AodContentMotion
 import com.android.systemui.Dependency
 import com.android.systemui.plugins.statusbar.StatusBarStateController
 import com.android.systemui.res.R
@@ -57,6 +58,7 @@ class AODStyle @JvmOverloads constructor(
     private var aodImageEnabled = false
     private var imageLoaded = false
     private var isDozing = false
+    private var aodProgress = AodContentMotion.progress(statusBarStateController.dozeAmount)
     private var loadGeneration = 0
 
     private val burnInProtectionRunnable = object : Runnable {
@@ -73,6 +75,11 @@ class AODStyle @JvmOverloads constructor(
     }
 
     private val statusBarStateListener = object : StatusBarStateController.StateListener {
+        override fun onDozeAmountChanged(linear: Float, eased: Float) {
+            aodProgress = AodContentMotion.progress(linear)
+            updateAodImageView()
+        }
+
         override fun onDozingChanged(dozing: Boolean) {
             isDozing = dozing
             loadAodImage()
@@ -95,6 +102,7 @@ class AODStyle @JvmOverloads constructor(
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         isDozing = statusBarStateController.isDozing
+        aodProgress = AodContentMotion.progress(statusBarStateController.dozeAmount)
         statusBarStateController.addCallback(statusBarStateListener)
         context.registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_UNLOCKED),
             Context.RECEIVER_NOT_EXPORTED)
@@ -154,9 +162,8 @@ class AODStyle @JvmOverloads constructor(
 
     private fun updateAodImageView() {
         val imageView = aodImageView ?: return
-        val show = isAttachedToWindow && aodImageEnabled && isDozing && imageLoaded
+        val show = isAttachedToWindow && aodImageEnabled && imageLoaded && aodProgress > 0f
         if (!show) {
-            imageView.animate().cancel()
             imageView.visibility = View.GONE
             visibility = View.GONE
             stopBurnInProtection()
@@ -165,13 +172,11 @@ class AODStyle @JvmOverloads constructor(
         val wasVisible = visibility == View.VISIBLE && imageView.visibility == View.VISIBLE
         visibility = View.VISIBLE
         imageView.visibility = View.VISIBLE
-        if (!wasVisible) {
-            imageView.animate().cancel()
-            imageView.scaleX = 0f
-            imageView.scaleY = 0f
-            imageView.animate().scaleX(1f).scaleY(1f).setDuration(500).start()
-            startBurnInProtection()
-        }
+        imageView.alpha = aodProgress
+        val scale = 0.96f + 0.04f * aodProgress
+        imageView.scaleX = scale
+        imageView.scaleY = scale
+        if (!wasVisible && isDozing) startBurnInProtection()
     }
 
     private fun loadAodImage() {

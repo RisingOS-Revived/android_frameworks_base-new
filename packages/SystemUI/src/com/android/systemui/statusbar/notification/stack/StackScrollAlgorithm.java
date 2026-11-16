@@ -164,6 +164,10 @@ public class StackScrollAlgorithm {
         updateShelfIconContainerState(ambientState);
         updateAlphaState(algorithmState, ambientState);
         mLockscreenNotificationStack.apply(algorithmState, ambientState);
+        if (mHostView instanceof NotificationStackScrollLayout stack) {
+            stack.keepMotoNotificationsInPlaceWhileDozing(algorithmState.visibleChildren);
+            stack.positionAodNotificationPopup(algorithmState.visibleChildren);
+        }
         hideNotificationsBelowShelf(algorithmState, ambientState);
         getNotificationChildrenStates(algorithmState);
     }
