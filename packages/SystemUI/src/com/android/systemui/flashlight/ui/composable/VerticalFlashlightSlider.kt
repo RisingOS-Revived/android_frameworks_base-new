@@ -332,7 +332,7 @@ private fun AnimatedVectorFlashlightDrawable(
     color: Color,
     modifier: Modifier = Modifier,
 ) {
-    val image = AnimatedImageVector.animatedVectorResource(R.drawable.qs_flashlight_icon_on)
+    val image = AnimatedImageVector.animatedVectorResource(R.drawable.flashlight_slider_icon_on)
     Icon(
         modifier = modifier.semantics { hideFromAccessibility() },
         painter = rememberAnimatedVectorPainter(image, atEnd),
